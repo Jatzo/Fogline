@@ -176,13 +176,51 @@ class Config:
     printing_rate: int = 1500
     catch_up_discount: int = 250
     tech_options_shown: int = 3
+    era_resources: dict[str, dict[str, int]] = field(default_factory=lambda: {
+        "1": {"timber": 20}, "2": {"timber": 40, "stone": 20, "metal": 10},
+        "3": {"stone": 60, "metal": 30, "luxury": 10}})
 
     # Score (rules 18)
     score_per_building: int = 5
     score_per_tech: int = 20
     score_luxury_divisor: int = 10
 
+    # Buildings (rules 15.1): cost, build ticks and the tech that unlocks each one.
+    buildings: dict[str, dict] = field(default_factory=lambda: {
+        "housing": {"cost": {"timber": 10}, "ticks": 1, "tech": "huts"},
+        "farm": {"cost": {"timber": 10}, "ticks": 1, "tech": "farming"},
+        "lumber_camp": {"cost": {"timber": 5}, "ticks": 1, "tech": "basic_crafts"},
+        "mine": {"cost": {"timber": 15}, "ticks": 2, "tech": "simple_tools"},
+        "workshop": {"cost": {"timber": 20, "stone": 10}, "ticks": 2, "tech": "basic_crafts"},
+        "pasture": {"cost": {"timber": 10}, "ticks": 1, "tech": "herding"},
+        "sawmill": {"cost": {"timber": 30, "stone": 10}, "ticks": 2, "tech": "woodworking"},
+        "granary": {"cost": {"timber": 30, "stone": 20}, "ticks": 2, "tech": "storage"},
+        "library": {"cost": {"timber": 40, "stone": 30, "metal": 5}, "ticks": 3, "tech": "writing"},
+        "market": {"cost": {"timber": 40, "stone": 20}, "ticks": 3, "tech": "markets"},
+        "barracks": {"cost": {"timber": 40, "stone": 30, "metal": 10}, "ticks": 3, "tech": "drill"},
+        "town_walls": {"cost": {"stone": 80}, "ticks": 4, "tech": "masonry"},
+        "harbour": {"cost": {"timber": 50, "stone": 30}, "ticks": 4, "tech": "harbours"},
+        "stone_fortress": {"cost": {"stone": 200, "metal": 40, "luxury": 20}, "ticks": 8, "tech": "fortification"},
+        "printing_house": {"cost": {"timber": 60, "stone": 60, "metal": 20, "luxury": 20}, "ticks": 6,
+                           "tech": "printing"},
+    })
+    build_queue_max: int = 5
+    rebuild_rate: int = 500
+    repair_rate: int = 250
+    repair_ticks: int = 1
+    pasture_biomes: tuple[str, ...] = ("plains", "tundra", "desert")
+
     # Settlements (rules 15)
+    stage_order: tuple[str, ...] = ("hamlet", "village", "town", "city")
+    stage_min_pop: dict[str, int] = field(default_factory=lambda: {
+        "hamlet": 0, "village": 25, "town": 60, "city": 150})
+    stage_min_buildings: dict[str, int] = field(default_factory=lambda: {
+        "hamlet": 0, "village": 4, "town": 8, "city": 14})
+    stage_requires: dict[str, tuple[str, ...]] = field(default_factory=lambda: {
+        "town": ("market", "library"), "city": ("town_walls",)})
+    stage_drop_ticks: int = 4
+    node_claim_reach: int = 3
+    node_claim_radius: int = 1
     claim_extra_radius: int = 3
     track_passes: int = 6
 

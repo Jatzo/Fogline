@@ -327,14 +327,16 @@ def _contestable_nodes(config: Config, state: dict, seed: int, attempt: int,
         add_node(state, f"contest-{index}", kind, tile_key(x, y), sizes[kind], regrowth, "", False)
 
 
-def _new_settlement(state: dict, civ: str, index: int, tile: str, pop: int, stage: str, name: str) -> str:
+def _new_settlement(config: Config, state: dict, civ: str, index: int, tile: str, pop: int, stage: str,
+                    name: str) -> str:
     settlement_id = f"{civ}-{index}"
     settlement = {"civ": civ, "name": name, "tile": tile, "stage": stage, "capital": index == 0,
                   "buildings": [], "pop": 0, "growth_acc": 0, "specialty": {}, "need": "", "quirk": "",
-                  "founded_tick": 0, "workers": {}, "idle_until": -1, "modifiers": []}
+                  "founded_tick": 0, "workers": {}, "idle_until": -1, "modifiers": [],
+                  "below_band_ticks": 0}
     state["settlements"][settlement_id] = settlement
     ledger.apply(settlement, state["ledger"], None, settlement_id, "pop", pop, ledger.Rule.WORLDGEN, 0)
-    layout.claim(state, settlement_id)
+    layout.claim(state, settlement_id, config.claim_extra_radius)
     return settlement_id
 
 
@@ -382,13 +384,15 @@ def _found_civ(config: Config, state: dict, seed: int, attempt: int, civ: str,
         "target_mods": [],
         "modifiers": [],
         "score": 0,
+        "prestige": 0,
+        "build_queue": [],
     }
     state["civs"][civ] = civ_state
     for resource, amount in sorted(spec.start_stock.items()):
         ledger.apply(civ_state["stocks"], state["ledger"], None, civ, resource, amount, ledger.Rule.WORLDGEN, 0)
 
     capital = capitals[civ]
-    capital_id = _new_settlement(state, civ, 0, tile_key(*capital), config.starting_capital_pop, "village", names[0])
+    capital_id = _new_settlement(config, state, civ, 0, tile_key(*capital), config.starting_capital_pop, "village", names[0])
     for _ in range(5):
         _build_on(state, capital_id, "housing", layout.core_tile(state, state["settlements"][capital_id], "housing", None))
     for _ in range(4):
@@ -428,7 +432,7 @@ def _found_civ(config: Config, state: dict, seed: int, attempt: int, civ: str,
             continue
         chosen.append(tile)
         index = len(chosen)
-        outpost_id = _new_settlement(state, civ, index, tile_key(*tile), config.starting_outpost_pop, "hamlet",
+        outpost_id = _new_settlement(config, state, civ, index, tile_key(*tile), config.starting_outpost_pop, "hamlet",
                                      names[index])
         _build_on(state, outpost_id, "housing", layout.core_tile(state, state["settlements"][outpost_id], "housing", None))
         farm = layout.farm_tile(state, outpost_id)

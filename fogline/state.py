@@ -62,3 +62,8 @@ def tile_key(x: int, y: int) -> str:
 def parse_tile_key(key: str) -> tuple[int, int]:
     x_text, y_text = key.split(",")
     return int(x_text), int(y_text)
+
+
+def record_event(state: dict, now: int, kind: str, civ_id: str, detail: str) -> None:
+    """Add one entry to the world's event list, read by the viewer and the Chronicler."""
+    state["events"].append({"tick": now, "kind": kind, "civ": civ_id, "detail": detail})

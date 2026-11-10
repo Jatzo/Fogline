@@ -147,3 +147,20 @@ def split_by_weight(total: int, weights: Mapping[str, int]) -> dict[str, int]:
     for key in order[:rest]:
         shares[key] += 1
     return shares
+
+
+def stage_for(config: Config, pop: int, building_types: Iterable[str]) -> str:
+    """Highest growth stage whose population, building count and must-have building are all met.
+
+    building_types lists the settlement's standing (non-ruin) buildings, one entry each.
+    """
+    types = list(building_types)
+    held = set(types)
+    best = config.stage_order[0]
+    for stage in config.stage_order[1:]:
+        needs = config.stage_requires.get(stage, ())
+        if (pop < config.stage_min_pop[stage] or len(types) < config.stage_min_buildings[stage]
+                or (needs and not held & set(needs))):
+            break
+        best = stage
+    return best

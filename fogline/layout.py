@@ -35,6 +35,8 @@ def is_farmland(world_map: dict, x: int, y: int) -> bool:
 def occupied_tiles(state: dict) -> set[str]:
     taken = {b["tile"] for s in state["settlements"].values() for b in s["buildings"]}
     taken.update(s["tile"] for s in state["settlements"].values())
+    # A build that has started holds its tile until it is finished.
+    taken.update(e["tile"] for c in state["civs"].values() for e in c["build_queue"] if e["tile"])
     return taken
 
 
@@ -42,7 +44,8 @@ def node_tiles(state: dict) -> set[str]:
     return {n["tile"] for n in state["nodes"].values()}
 
 
-def core_tile(state: dict, settlement: dict, building: str, nearest_border: tuple[int, int] | None) -> str | None:
+def core_tile(state: dict, settlement: dict, building: str, nearest_border: tuple[int, int] | None,
+              fits=None) -> str | None:
     """Default layout for a non-extraction building inside the footprint.
 
     Centre buildings take the free tile nearest the centre; edge buildings take the free
@@ -54,7 +57,7 @@ def core_tile(state: dict, settlement: dict, building: str, nearest_border: tupl
     taken = occupied_tiles(state) | node_tiles(state)
     candidates = [
         (x, y) for x, y in square((cx, cy), radius, world_map["size"])
-        if is_land(world_map, x, y) and tile_key(x, y) not in taken
+        if is_land(world_map, x, y) and tile_key(x, y) not in taken and (fits is None or fits(tile_key(x, y)))
     ]
     if not candidates:
         return None
@@ -83,11 +86,11 @@ def farm_tile(state: dict, settlement_id: str) -> str | None:
     return tile_key(*pick[0]) if pick else None
 
 
-def claim(state: dict, settlement_id: str) -> None:
+def claim(state: dict, settlement_id: str, extra_radius: int) -> None:
     """Claim unclaimed tiles within footprint radius + 3. Older claims keep their tiles."""
     settlement = state["settlements"][settlement_id]
     cx, cy = (int(v) for v in settlement["tile"].split(","))
-    radius = STAGE_RADIUS[settlement["stage"]] + 3
+    radius = STAGE_RADIUS[settlement["stage"]] + extra_radius
     world_map = state["map"]
     for x, y in square((cx, cy), radius, world_map["size"]):
         key = tile_key(x, y)

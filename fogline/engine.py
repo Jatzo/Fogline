@@ -7,13 +7,13 @@ Every stock change goes through ledger.apply; every draw comes from a fresh rng 
 
 from typing import Any
 
-from fogline import ledger, rng, rules, worldgen
+from fogline import construction, ledger, rng, rules, techs, worldgen
 from fogline.config import RESOURCES, Config
 from fogline.intmath import PER_MILLE, ceil_div, floor_div, per_mille
-from fogline.layout import is_land, node_tiles, occupied_tiles
+from fogline.layout import biome_name, is_land, node_tiles, occupied_tiles
 from fogline.ledger import Rule
 from fogline.paths import is_river
-from fogline.state import parse_tile_key
+from fogline.state import parse_tile_key, record_event as _record
 
 WORLD_EVENTS = ("drought", "plague", "harsh_winter", "comet", "mineral_discovery", "flood")
 WORK_BUILDINGS = frozenset({"farm", "pasture", "lumber_camp", "mine", "workshop", "library"})
@@ -28,6 +28,7 @@ def tick(config: Config, state: dict, log: Log = None) -> None:
     now = state["tick"]
     scratch: dict[str, dict[str, Any]] = {civ: {} for civ in sorted(state["civs"])}
     _production(config, state, now, log, scratch)
+    _research(config, state, now, log)
     _consumption(config, state, now, log, scratch)
     _events(config, state, now, log, scratch)
     state["tick"] = now + 1
@@ -67,8 +68,9 @@ def _has_building(settlement: dict, building_type: str) -> bool:
     return any(b["type"] == building_type and not b["ruin"] for b in settlement["buildings"])
 
 
-def _work_sites(config: Config, state: dict, settlement_id: str, node_at: dict[str, str]) -> list[dict]:
-    """Every place in a settlement where people can work, in building order, luxury last."""
+def _work_sites(config: Config, state: dict, settlement_id: str, node_at: dict[str, str],
+                coastal: set[str]) -> list[dict]:
+    """Every place in a settlement where people can work: buildings in order, then fishing, then luxury."""
     settlement = state["settlements"][settlement_id]
     sites = []
     nth: dict[str, int] = {}
@@ -95,6 +97,10 @@ def _work_sites(config: Config, state: dict, settlement_id: str, node_at: dict[s
             rate = per_mille(rate, config.library_scholar_rate)
         sites.append({"work": work, "slots": config.slots[kind], "node": node_id,
                       "rate": rate, "tile": building["tile"]})
+    if settlement_id in coastal:
+        # Any coast in a settlement's land is a fishing ground (rules 21); a harbour widens it.
+        slots = config.slots["fishing_harbour" if _has_building(settlement, "harbour") else "fishing_no_harbour"]
+        sites.append({"work": "fishing", "slots": slots, "node": "", "rate": PER_MILLE, "tile": settlement["tile"]})
     for node_id, node in sorted(state["nodes"].items()):
         if node["kind"] == "luxury" and state["territory"].get(node["tile"]) == settlement_id:
             sites.append({"work": "luxury", "slots": config.luxury_workers_max, "node": "", "rate": PER_MILLE,
@@ -109,6 +115,7 @@ def _production(config: Config, state: dict, now: int, log: Log, scratch: dict) 
     season = rules.season(now)
     harsh = state["world"]["harsh_winter_tick"] == now
     node_at = {node["tile"]: node_id for node_id, node in sorted(state["nodes"].items())}
+    coastal = {sid for tile, sid in state["territory"].items() if biome_name(state["map"], tile) == "coast"}
     for civ_id in sorted(state["civs"]):
         civ = state["civs"][civ_id]
         food_room = civ["food_worker_cap"] or None
@@ -118,7 +125,7 @@ def _production(config: Config, state: dict, now: int, log: Log, scratch: dict) 
         civ_mods = _active(civ["modifiers"], now)
         for settlement_id in settlements_of(state, civ_id):
             settlement = state["settlements"][settlement_id]
-            sites = _work_sites(config, state, settlement_id, node_at)
+            sites = _work_sites(config, state, settlement_id, node_at, coastal)
             if settlement["idle_until"] >= now:
                 workers = {line: 0 for line in rules.LINES}
             else:
@@ -171,7 +178,7 @@ def _production(config: Config, state: dict, now: int, log: Log, scratch: dict) 
                     _apply(state, log, node_id, node, "node", -amount, Rule.EXTRACTION)
                 _apply(state, log, civ_id, civ["stocks"], line, amount, Rule.PRODUCTION)
                 produced[line] += amount
-        if "printing" in civ["techs"]:
+        if any(_has_building(state["settlements"][sid], "printing_house") for sid in settlements_of(state, civ_id)):
             research_milli = per_mille(research_milli, config.printing_rate)
         civ["research"]["points_milli"] += research_milli
         scratch[civ_id].update(food_produced=produced["food"], assigned=assigned)
@@ -179,6 +186,36 @@ def _production(config: Config, state: dict, now: int, log: Log, scratch: dict) 
     for node_id, node in sorted(state["nodes"].items()):
         if node["regrowth"] and node["node"] < node["size"]:
             _apply(state, log, node_id, node, "node", min(node["regrowth"], node["size"] - node["node"]), Rule.REGROWTH)
+
+
+def _research(config: Config, state: dict, now: int, log: Log) -> None:
+    """Spend the civ's points pool on its chosen tech (ADR 0002).
+
+    The pool keeps its points when the ruler switches tech. With no tech chosen the points are
+    lost, unless the tree is finished, when they become prestige.
+    """
+    for civ_id in sorted(state["civs"]):
+        civ = state["civs"][civ_id]
+        research = civ["research"]
+        tech_id = research["tech"]
+        if not tech_id:
+            if not techs.available(state, civ_id):
+                civ["prestige"] += floor_div(research["points_milli"], PER_MILLE)
+                research["points_milli"] %= PER_MILLE
+            else:
+                research["points_milli"] = 0
+            continue
+        points, price = techs.cost(config, tech_id)
+        if research["points_milli"] < points * PER_MILLE:
+            continue
+        if any(civ["stocks"][res] < amount for res, amount in price.items()):
+            continue  # finished but unpaid: the pool waits
+        for res, amount in sorted(price.items()):
+            _apply(state, log, civ_id, civ["stocks"], res, -amount, Rule.RESEARCH_COST)
+        research["points_milli"] -= points * PER_MILLE
+        research["tech"] = ""
+        civ["techs"].append(tech_id)
+        _record(state, now, "tech", civ_id, tech_id)
 
 
 # ---------------------------------------------------------------- step 6: consumption
@@ -295,6 +332,7 @@ def _events(config: Config, state: dict, now: int, log: Log, scratch: dict) -> N
         _unrest(config, state, now, log, civ_id)
         _update_stability(config, state, now, civ_id, scratch[civ_id])
         _secession(config, state, now, civ_id)
+        construction.advance(config, state, now, civ_id, log)
         _score(config, state, civ_id)
         civ = state["civs"][civ_id]
         civ["modifiers"] = [m for m in civ["modifiers"] if m["until"] > now]
@@ -308,10 +346,6 @@ def _events(config: Config, state: dict, now: int, log: Log, scratch: dict) -> N
 def next_winter(now: int) -> int:
     """The first winter tick after now."""
     return now + 1 + (3 - (now + 1) % 4) % 4
-
-
-def _record(state: dict, now: int, kind: str, civ_id: str, detail: str) -> None:
-    state["events"].append({"tick": now, "kind": kind, "civ": civ_id, "detail": detail})
 
 
 def _damage_building(state: dict, draw, civ_id: str) -> str:
@@ -442,4 +476,4 @@ def _score(config: Config, state: dict, civ_id: str) -> None:
                     for b in state["settlements"][sid]["buildings"] if not b["ruin"])
     civ["score"] = (civ_pop(state, civ_id) + config.score_per_building * buildings
                     + config.score_per_tech * len(civ["techs"])
-                    + floor_div(civ["luxury_consumed"], config.score_luxury_divisor))
+                    + floor_div(civ["luxury_consumed"], config.score_luxury_divisor) + civ["prestige"])

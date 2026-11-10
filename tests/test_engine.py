@@ -145,4 +145,4 @@ def test_unpaid_upkeep_ruins_a_building_after_eight_ticks(start):
 def test_events_are_off_when_disabled(start):
     state = _fresh(start)
     engine.run(QUIET, state, 100)
-    assert not [e for e in state["events"] if e["kind"] not in ("riot", "secession")]
+    assert not [e for e in state["events"] if e["kind"] in (*engine.WORLD_EVENTS, "quirk")]
