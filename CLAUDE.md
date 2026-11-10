@@ -17,8 +17,9 @@ Every phase must produce:
 - A passing CI workflow (GitHub Actions) that runs the test suite on push.
 - At least one short architecture decision record in `docs/adr/` for that phase, explaining a real choice made, the alternative not taken, and why.
 - The first time a non-trivial bug comes up, an entry in `docs/debug-log.md`: what broke, how it was investigated, the fix, and a regression test that would catch it again.
-Don't manufacture an ADR or a bug for the sake of it — write them when a real decision or a real bug actually happens, but never skip documenting one when it does.
+Don't manufacture an ADR or a bug for the sake of it. Write them when a real decision or a real bug actually happens, but never skip documenting one when it does.
 
 ## This repo is PUBLIC
 - Never commit secrets, `voice.md`, or raw run outputs. Keep private material in `private/` (gitignored).
+- Overrides the global "No attribution, no AI mentions" rule, for content only: this project studies LLM rulers, so docs, code and the case study may name the models, prompts and agent setup. The attribution half still holds: no "Co-Authored-By", "Generated with" or tool credits in commits, PRs or files.
 - Skills: `frontend-design` for the viewer, `testing-strategy` for conservation, determinism, fog and message-hardening suites; code review at the end of each phase.
