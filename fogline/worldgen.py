@@ -145,6 +145,8 @@ def _build(config: Config, seed: int, attempt: int) -> dict:
         "nodes": {},
         "territory": {},
         "ledger": {},
+        "world": {"harsh_winter_tick": -1},
+        "events": [],
     }
 
     for civ in civ_ids:
@@ -237,13 +239,14 @@ def _ensure_farmland(config: Config, state: dict, capital: tuple[int, int]) -> N
                 have += 1
 
 
-def _add_node(state: dict, node_id: str, kind: str, tile: str, size: int, regrowth: int, home: str,
-              small: bool) -> None:
+def add_node(state: dict, node_id: str, kind: str, tile: str, size: int, regrowth: int, home: str,
+             small: bool, rule: ledger.Rule = ledger.Rule.WORLDGEN, tick: int = 0,
+             log: list | None = None) -> None:
     node = {"kind": kind, "tile": tile, "size": size, "regrowth": regrowth, "home": home, "small": small,
             "finite": kind != "luxury", "node": 0}
     state["nodes"][node_id] = node
     if node["finite"]:
-        ledger.apply(node, state["ledger"], None, node_id, "node", size, ledger.Rule.WORLDGEN, 0)
+        ledger.apply(node, state["ledger"], log, node_id, "node", size, rule, tick)
 
 
 def _pick_node_tile(state: dict, draw, kind: str, centre: tuple[int, int], ring_min: int, ring_max: int) -> str:
@@ -283,10 +286,10 @@ def _home_nodes(config: Config, state: dict, seed: int, attempt: int, civ: str, 
                 regrowth = config.short_forest_regrowth if small else config.forest_regrowth
             else:
                 regrowth = 0
-            _add_node(state, f"{civ}-n{count}", kind, tile, size, regrowth, civ, small)
+            add_node(state, f"{civ}-n{count}", kind, tile, size, regrowth, civ, small)
             count += 1
     tile = _pick_node_tile(state, draw, "luxury", capital, 1, 3)
-    _add_node(state, f"{civ}-lux", "luxury", tile, 0, 0, civ, False)
+    add_node(state, f"{civ}-lux", "luxury", tile, 0, 0, civ, False)
 
 
 def _contestable_nodes(config: Config, state: dict, seed: int, attempt: int,
@@ -321,14 +324,14 @@ def _contestable_nodes(config: Config, state: dict, seed: int, attempt: int,
         if layout.biome_name(world_map, tile_key(x, y)) not in NODE_BIOMES[kind]:
             _set_biome(state, x, y, NODE_FALLBACK[kind])
         regrowth = config.forest_regrowth if kind == "forest" else 0
-        _add_node(state, f"contest-{index}", kind, tile_key(x, y), sizes[kind], regrowth, "", False)
+        add_node(state, f"contest-{index}", kind, tile_key(x, y), sizes[kind], regrowth, "", False)
 
 
 def _new_settlement(state: dict, civ: str, index: int, tile: str, pop: int, stage: str, name: str) -> str:
     settlement_id = f"{civ}-{index}"
     settlement = {"civ": civ, "name": name, "tile": tile, "stage": stage, "capital": index == 0,
                   "buildings": [], "pop": 0, "growth_acc": 0, "specialty": {}, "need": "", "quirk": "",
-                  "founded_tick": 0}
+                  "founded_tick": 0, "workers": {}, "idle_until": -1, "modifiers": []}
     state["settlements"][settlement_id] = settlement
     ledger.apply(settlement, state["ledger"], None, settlement_id, "pop", pop, ledger.Rule.WORLDGEN, 0)
     layout.claim(state, settlement_id)
@@ -338,7 +341,9 @@ def _new_settlement(state: dict, civ: str, index: int, tile: str, pop: int, stag
 def _build_on(state: dict, settlement_id: str, building: str, tile: str | None) -> None:
     if tile is None:
         raise RuntimeError(f"no tile for starting {building} in {settlement_id}")
-    state["settlements"][settlement_id]["buildings"].append({"type": building, "tile": tile, "built_tick": 0})
+    state["settlements"][settlement_id]["buildings"].append({
+        "type": building, "tile": tile, "built_tick": 0,
+        "owed": False, "arrears_ticks": 0, "damaged": False, "ruin": False})
 
 
 def _node_for(state: dict, settlement_id: str, kinds: tuple[str, ...], allow_small: bool) -> str | None:
@@ -367,6 +372,16 @@ def _found_civ(config: Config, state: dict, seed: int, attempt: int, civ: str,
         "temperament": {"generosity": spec.generosity, "ruthlessness": spec.ruthlessness,
                         "insularity": spec.insularity},
         "bot_memory": {},
+        "allocation": dict(config.default_allocation),
+        "tools_short": False,
+        "food_window": [],
+        "low_stability_ticks": 0,
+        "luxury_used_tick": -1,
+        "luxury_consumed": 0,
+        "shock": 0,
+        "target_mods": [],
+        "modifiers": [],
+        "score": 0,
     }
     state["civs"][civ] = civ_state
     for resource, amount in sorted(spec.start_stock.items()):

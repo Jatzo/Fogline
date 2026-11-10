@@ -101,10 +101,21 @@ class Config:
     specialty_penalty: int = 300
     diminishing_step: int = 100
     diminishing_floor: int = 500
+    # Per-mille bonus by work line: crop rotation on farms, quarrying on stone, iron working on metal.
+    tech_bonus: dict[str, tuple[str, int]] = field(default_factory=lambda: {
+        "crop_rotation": ("farm", 250), "quarrying": ("stone", 250), "iron_working": ("metal", 250)})
+    sawmill_bonus: int = 300
+    impaired_rate: int = 500  # a damaged building, or one with upkeep in arrears, runs at half output
+    # Worker allocation by line, in percent, until a ruler sets one (standing orders arrive in M5).
+    default_allocation: dict[str, int] = field(default_factory=lambda: {
+        "food": 50, "timber": 15, "stone": 10, "metal": 10, "luxury": 5, "research": 10})
 
     # Population and consumption (rules 4)
     housing_capacity: int = 10
     growth_rate: int = 15
+    culture_growth_rate: dict[str, int] = field(default_factory=lambda: {"verdance": 20})
+    starvation_divisor: int = 4
+    food_window_ticks: int = 4
     food_per_person: int = 1
     spoilage: int = 5
     spoilage_granary: int = 2
@@ -113,6 +124,8 @@ class Config:
     building_timber_upkeep: int = 1
     building_stone_upkeep: int = 1
     stone_building_extra_upkeep: int = 2
+    stone_buildings: tuple[str, ...] = ("workshop", "granary", "library", "market", "barracks", "town_walls",
+                                        "harbour", "stone_fortress", "printing_house")
     cold_death_rate: int = 20
     tool_wear_workers: int = 25
     tool_shortage_penalty: int = 200
@@ -164,6 +177,11 @@ class Config:
     catch_up_discount: int = 250
     tech_options_shown: int = 3
 
+    # Score (rules 18)
+    score_per_building: int = 5
+    score_per_tech: int = 20
+    score_luxury_divisor: int = 10
+
     # Settlements (rules 15)
     claim_extra_radius: int = 3
     track_passes: int = 6
@@ -177,6 +195,25 @@ class Config:
     events_enabled: bool = True
     world_event_chance: int = 20
     quirk_event_chance: int = 20
+    drought_rate: int = 600
+    drought_ticks: int = 4
+    plague_loss: int = 100
+    plague_stability: int = 10
+    harsh_winter_fuel: int = 2000
+    comet_stability: int = 5
+    comet_ticks: int = 2
+    discovery_node_size: int = 1500
+    flood_rate: int = 500
+    flood_ticks: int = 2
+    quirk_line_rate: int = 100
+    quirk_ticks: int = 2
+    quirk_stability: int = 3
+    # What each town quirk does when it fires: a line +/-10% for 2 ticks, or stability +/-3.
+    quirk_effects: dict[str, tuple[str, int]] = field(default_factory=lambda: {
+        "famed_smith": ("metal", 1), "fragile_harbour": ("food", -1), "plague_prone_slum": ("stability", -1),
+        "lucky_harvests": ("food", 1), "quarrelsome_guilds": ("stability", -1), "old_shrine": ("stability", 1),
+        "rich_seam": ("stone", 1), "flood_meadow": ("food", -1), "proud_militia": ("stability", 1),
+        "busy_crossroads": ("timber", 1), "lean_winters": ("food", -1), "storytellers": ("research", 1)})
 
     civs: tuple[CivSpec, ...] = field(default_factory=_civs)
 

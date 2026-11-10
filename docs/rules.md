@@ -38,7 +38,7 @@ Each tick runs in this order:
 | Fishing ground | coast | unlimited | needs a harbour for more than 2 workers |
 | Luxury | one type per civ, near its capital | unlimited, 2 workers max | yields 1 per worker per tick |
 
-- **Start positions.** The five capitals sit in their home biomes, spread as far apart as the map allows (*tuned* by the contact test, section 6). Each civ gets three outposts 5 to 8 tiles from its capital, on the side facing away from its nearest neighbour.
+- **Start positions.** The five capitals sit in their home biomes, spread as far apart as the map allows (*tuned* by the contact test, section 6). Each civ gets three outposts 7 to 9 tiles from its capital (just outside the capital's starting claim, so each owns land), on the side facing away from its nearest neighbour.
 - **Shortage by geography.** A civ short of a resource gets only a small supply of it in its home region:
   - **Food-short civs:** farm, pasture and fishing workers in the home region together are capped at 12.
   - **Timber-short civs:** one forest of 500, regrowing 2 a tick.
@@ -394,3 +394,13 @@ Each tick there is a 2% draw (events stream) for one world event. The operator c
 | 14 tree pace | a full-focus scripted bot finishes the tree between tick 300 and 400 |
 | 15.2 stages | each scripted civ reaches town by tick 200 on the default seed |
 | 6 contact timing | Phase 4: median first contact of scripted scouts over 10 seeds lands in tick 30 to 60 |
+
+## 21. Readings settled while building the engine
+
+Where the rules above leave a choice open, the engine does this (approved 2026-11-10):
+- **Default worker allocation**, until a ruler sets one: food 50%, timber 15%, stone 10%, metal 10%, luxury 5%, research 10%. Each line gets its share up to its slots; spare people fill free slots, biggest share first; the rest idle.
+- **Quirk effects** (section 13): each quirk maps to one line at plus or minus 10% for 2 ticks, or stability plus or minus 3. The table is `quirk_effects` in config.
+- **Harsh winter** falls on every civ at the next winter tick.
+- **Plague and quirk** stability changes are one-off shocks. The **comet** lowers the stability target by 5 for 2 ticks.
+- **Upkeep in arrears** is retried every tick. A building's bill is paid whole or not at all.
+- **Tool wear** is paid in full or not at all.
