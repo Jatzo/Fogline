@@ -56,10 +56,20 @@ class Config:
     map_size: int = 64
     edge_margin: int = 4
     min_capital_path_cost: int = 40
+    capital_ring_radius: int = 24  # capitals sit on a pentagon this far from the map centre
+    capital_jitter: int = 2
+    worldgen_attempts: int = 20
     home_radius: int = 10
+    home_node_ring_min: int = 2
+    home_node_ring_max: int = 5
+    capital_farmland_min: int = 8
+    outpost_min_spacing: int = 4
+    contestable_min_spacing: int = 6
+    noise_spacing: int = 8
     outposts_per_civ: int = 3
-    outpost_distance_min: int = 5
-    outpost_distance_max: int = 8
+    # Outposts sit just outside the capital's starting claim (village radius 2 + 3), so they own land.
+    outpost_distance_min: int = 7
+    outpost_distance_max: int = 9
     move_cost: dict[str, int] = field(default_factory=lambda: {
         "plains": 1, "coast": 1, "forest": 2, "desert": 2, "tundra": 2, "mountains": 3})
     river_crossing_cost: int = 1
