@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fogline"
+version = "0.1.0"
+description = "Five civilisations grow in isolation inside one shared world, then find each other."
+requires-python = ">=3.13"
+dependencies = []
+
+[project.optional-dependencies]
+viewer = ["fastapi>=0.110", "uvicorn>=0.29"]
+dev = ["pytest>=8", "hypothesis>=6.100"]
+
+[tool.setuptools.packages.find]
+include = ["fogline*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["slow: long simulation runs (still run in CI)"]
