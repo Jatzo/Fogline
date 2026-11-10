@@ -21,6 +21,13 @@ Update this at the end of every Claude Code session.
 - Normal language from first contact
 - Runs on the operator's Claude plan; campaign-style resumable play
 - Research and case study are written by the operator; Claude supplies evidence packs and draft tables
+- v1 tech tree cut to 21 nodes over three eras; gunpowder, banking, steam, railways, telegraph and ships are v2
+- docs/rules.md approved 2026-11-10, after one opus review round; PLAN.md patched for its 14 departures
+
+## Open numbers (tuned by Phase 1 and Phase 4 tests)
+- Run-out schedule (rules 4.7): starting stocks and small-node sizes
+- Tech pace (rules 14): era costs
+- Contact timing (rules 6): start spacing, outpost placement, scout move; map may grow to 80 x 80
 
 ## Next session
-Start Phase 1 in plan mode: write docs/rules.md and wait for approval.
+Phase 1 engine, in this order: config, rng, state, worldgen, rules, tick loop, actions and validation, snapshot, headless runner, scripted bots, then the read-only viewer. Write tests alongside each module (testing-strategy skill). Add the CI workflow first, and an ADR for the integer and civ-wide stockpile choices.
