@@ -32,7 +32,7 @@ A long-running, watchable simulation where emergent behaviour (trade, dependence
 ## 3. The world
 
 - **Map:** square tile grid, default 64×64 (config), generated from a seed with biomes (mountains, forest, plains, desert, tundra, coast/sea, rivers). Obstacles slow exploration.
-- **Time (fast progression):** one tick = **one season**; 4 ticks per year (config `ticks_per_year`). A 1,000-tick run is **250 in-world years**, enough to travel from the early medieval age toward early industry (section 3b). LLM cost follows decisions, not ticks, so coarser time makes the world faster without costing more. Movement, courier and combat speeds are calibrated per tick (a season of travel covers several tiles; a war is a multi-tick campaign).
+- **Time (fast progression):** one tick = **one season**; 4 ticks per year (config `ticks_per_year`). A 1,000-tick run is **250 in-world years**. The v1 tree (section 3b) runs from the early medieval age to harbours, fortresses and printing, which a well-run civ reaches by about tick 300 to 400; later eras are v2. LLM cost follows decisions, not ticks, so coarser time makes the world faster without costing more. Movement, courier and combat speeds are calibrated per tick (a season of travel covers several tiles; a war is a multi-tick campaign).
 - **Start positions and contact timing:** regions are placed so that **first contact typically lands between tick 30 and tick 60** (about 8–15 in-world years), tuned by seed and travel costs. Early isolation is the natural prelude; contact is not disabled. A debug option places two civs close together for early testing.
 - **Resources (v1): four basics (food, timber, stone, metal) plus one unique luxury per civ.** Salt and extras are v2. Nodes have finite or slowly regenerating yields, and some are **contestable** (reachable by more than one civ). Illustrative defaults (concrete numbers live in `config`; Claude Code proposes them for approval):
 
@@ -69,15 +69,53 @@ Each civ starts with one capital and two or three outposts placed at worldgen; o
 **Start with basics, discover the rest.** Each civ begins with basic buildings and a few starting techs (farming, simple tools, huts, basic crafts). Everything after that is discovered through a **hidden, data-driven tech tree** held by the engine.
 
 - **What the ruler sees:** only unlocked techs plus the next one or two options with a short in-fiction hint (e.g. "your smiths speak of harder iron"). Never the full tree, and never later eras.
-- **Cost of an unlock:** prerequisites, resources, and **scholar-hours** (workers assigned to a library/workshop through `set_research`). Some techs need a local resource, such as coal for steam or saltpetre for gunpowder, so geography decides who gets what first.
-- **Era ladder (v1 target):** early medieval → iron and roads → harbours and coastal fishing, stone fortresses, printing (sea travel is v2) → gunpowder and banking → steam and early railways. Each era ends with a few "landmark" unlocks (e.g. railway, steam mill, telegraph) so something visible changes in the viewer.
-- **Fast progression:** time is one season per tick (section 3); tech costs are tuned so a well-run civ reaches steam and early railways around **tick 600–800 (150–200 years)**, while a poorly run one is visibly behind. A config `tech_speed` multiplier lets you slow or speed the whole tree.
+- **Cost of an unlock:** prerequisites, resources, and **scholar-hours** (workers assigned to a library/workshop through `set_research`). Some techs need a terrain feature or node inside the civ's territory (a metal node for iron working, a river for irrigation, a coast for harbours), so geography decides who gets what first. v1 adds no new resources for this.
+- **Era ladder (v1):** early medieval → iron and roads → harbours, stone fortresses and printing. Each era ends with "landmark" unlocks that change what the viewer shows: the library (era 1), roads and town walls (era 2), harbours, fortresses and the printing house (era 3).
+- **Fast progression:** time is one season per tick (section 3); tech costs are tuned so a well-run civ finishes the v1 tree around **tick 300–400 (75–100 years)**, while a poorly run one is visibly behind. That puts the whole tree inside the experiment runs (300 ticks) and Phase 4 (400 ticks). Once a civ has finished the tree, scholars produce prestige for its score instead. A config `tech_speed` multiplier lets you slow or speed the whole tree.
+
+**The v1 tree (21 nodes: 4 at the start, 17 to unlock).** Cut to what a 300 to 400 tick run can reach, so every tech shows up in the evidence.
+
+| Tech | Era | Unlocks | Why it is in v1 |
+|---|---|---|---|
+| Farming | start | farm | Every civ needs food from tick 0. |
+| Simple tools | start | mine | Basic metal and stone output from tick 0. |
+| Huts | start | housing, hamlet stage | Population needs somewhere to live before anything grows. |
+| Basic crafts | start | workshop | Gives scholars a place to work before the library. |
+| Crop rotation | 1 | more food per farm | The main lever a food-short civ has before contact. |
+| Herding | 1 | food from plains, tundra and desert tiles | A slow local food path for Frostmark and Dunerunners that eases the shortage without solving it. |
+| Woodworking | 1 | sawmill | Timber is consumed, and timber-rich civs need a specialty to sell. |
+| Quarrying | 1 | better stone output (needs a stone node in territory) | Stone is consumed as upkeep, and the node requirement makes geography matter. |
+| Storage | 1 | granary, less winter spoilage | Lets civs ride out harsh winters and stretch stocks until contact. |
+| Pathfinding | 1 | scouts see and move further | Controls when contact happens, which the whole plan turns on. |
+| Writing | 1 | library, more scholar output | The research building; without it the tree stalls. |
+| Iron working | 2 | stronger tools and units (needs a metal node in territory) | Makes metal the resource everyone wants, for output and for war. |
+| Roads | 2 | road edges, faster caravans and couriers | The visible map change of era 2, and a lever on message latency. |
+| Carts | 2 | larger caravan capacity | Makes long trade worth the risk of a raid. |
+| Masonry | 2 | town walls, stone buildings, the city stage | Creates demand for stone and lets towns reach city in the viewer. |
+| Markets | 2 | market, cheaper trades and internal transfers | The trade building; the Saltreach modifier hangs on it. |
+| Drill | 2 | barracks, trained armies | Raids need armies, and the pressure mechanics need raids to be possible. |
+| Irrigation | 2 | farms on dry land (needs a river tile) | A geography-gated way for Dunerunners to depend less on imports. |
+| Harbours | 3 | harbour, coastal fishing (needs a coast tile) | The coastal civs' landmark; sea travel stays v2. |
+| Fortification | 3 | stone fortress, strong defence | The answer to raiding, and an era 3 landmark in the viewer. |
+| Printing | 3 | printing house, faster research, cheaper blueprints | Speeds tech diffusion, the core reason to interact. |
+
+**Deferred to v2.**
+
+| Tech | Why it waits |
+|---|---|
+| Gunpowder | Needs saltpetre, a new resource, and a rework of combat; well past tick 400. |
+| Banking | Needs a currency, and emergent currency is already v2. |
+| Steam power | Needs coal, a new resource, and arrives after the 300 to 400 tick window. |
+| Steam mill | Depends on steam power. |
+| Railways | Depends on steam, and needs a new tile/edge type and network rendering. |
+| Telegraph | Instant messages would break courier latency, a core diplomacy mechanic. |
+| Shipbuilding and sea travel | Already v2: needs sea movement and naval combat. |
 - **Tech diffusion:** techs spread through contact: trading with a more advanced civ, bringing in its craftsmen, copying captured workshops, or buying a **blueprint** as a trade good (the engine checks the buyer meets the prerequisites). This is a core reason to interact; the most advanced civ becomes both dangerous and a teacher.
-- **Technology changes the map:** railways, roads and ports are tiles/edges with their own build costs; better transport shortens caravan and courier times and widens the world.
+- **Technology changes the map:** roads and harbours are tiles/edges with their own build costs (railways are v2); better transport shortens caravan and courier times and widens the world.
 - **No free invention.** Rulers can't invent things outside the tree. Free-text "tinkering" (a checker maps an idea to the nearest tech node) is v2.
 - **Anti-runaway:** research costs rise per era; catch-up bonus for civs that have met a more advanced civ.
 
-*Rules to settle in `docs/rules.md`:* the tree itself (about 40–60 nodes for v1), costs, scholar-hour formula, `tech_speed`, which techs need which local resources, blueprint rules.
+*Rules to settle in `docs/rules.md`:* exact effects and costs for the 21 nodes above, prerequisites, scholar-hour formula, `tech_speed`, which techs need which terrain or node, blueprint rules.
 
 ## 4. Civilisation rules and pressure mechanics
 
@@ -86,7 +124,7 @@ Each civ has: population (growth and starvation), stockpiles, stability, buildin
 Illustrative rules (tuned in config):
 - Workers are assigned to nodes or buildings; output depends on assignment, season and unlocked techs.
 - Population eats food each tick; shortage reduces stability, then population.
-- Buildings: farm, mine, sawmill, granary, market, barracks, harbour, library. Costs are in resources and ticks.
+- Buildings: farm, mine, housing and workshop from the start; sawmill, granary, library, market, barracks, town walls, harbour, stone fortress and printing house each need a tech (section 3b). Costs are in resources and ticks.
 - Stability affects output; very low stability triggers unrest.
 
 **Pressure mechanics (so peace and stagnation are not automatic):**
@@ -253,7 +291,7 @@ The aim is a piece of research with your name on it, not a generated report.
 7. **Experiments, research and case study.** Commit `research/preregistration.md` first, then run the two v1 experiments with ≥5 seeds each, build the evidence packs, export time-lapse clips of a showcase world, and write the case study (section 13b).
    *Done when:* the preregistration predates the runs in git history; each experiment has a results table with distributions and a plain note on variance; every claim in `case-study.md` links to a tick and stored output; the final narrative is in your own words.
 
-**v2 ideas:** pidgin phase; migration; disease; ships and sea travel; espionage; rumour and reputation spreading; internal councils per civ; emergent currency; cultural-drift metrics; mixed-model rulers; tribute and alliance treaties; free-text tinkering experiments; eras beyond early industry (electricity, rail networks at scale); salt and more resources.
+**v2 ideas:** pidgin phase; migration; disease; ships and sea travel; espionage; rumour and reputation spreading; internal councils per civ; emergent currency; cultural-drift metrics; mixed-model rulers; tribute and alliance treaties; free-text tinkering experiments; later eras (gunpowder, banking, steam, railways, telegraph and beyond; section 3b); salt and more resources.
 
 ## 16. Risks and mitigations
 
@@ -294,7 +332,7 @@ fogline/
 - Caravan carrying capacity, interception, and escrow while in transit.
 - Courier latency and path rules; contact range; price valuation by last trade.
 - Concrete numeric defaults for the map, economy, unit costs, pressure mechanics and culture modifiers.
-- Tech tree (about 40–60 nodes), era ladder, costs, `tech_speed`, resource requirements per tech, blueprints, and tick-scale calibration (movement, courier and combat speeds per season).
+- Tech tree (the 21 nodes in section 3b), era ladder, costs, `tech_speed`, resource requirements per tech, blueprints, and tick-scale calibration (movement, courier and combat speeds per season).
 - Town traits: specialty bonuses, comfort needs, temperament formulas, reputation update rules, and how temperament is shown to rulers.
 - Settlement spatial model: tile footprint per stage, default layout rules, `build` tile hints, territory and border rules, road generation, and the stage thresholds.
 - Population growth and starvation formulas; consumption and upkeep of all four basics; starting stocks that keep a short civ going to tick 60 to 80.
