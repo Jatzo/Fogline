@@ -16,7 +16,7 @@ from typing import Any, TypedDict
 
 import functools
 
-from fogline import actions, observation, scheduler, schema
+from fogline import actions, memory, observation, scheduler, schema
 from fogline.actions import Reason
 from fogline.config import RESOURCES, Config
 from fogline.state import StateError, check_plain, record_event
@@ -252,4 +252,32 @@ def step(config: Config, state: dict, deciders: Mapping[str, Decider] | None, lo
     replies = scheduler.call_all(calls, config.max_concurrent_calls)
     for civ_id in sorted(seen):
         records.append(_apply(config, state, civ_id, seen[civ_id], replies.get(civ_id), log))
-    return sorted(records, key=lambda r: r.civ)
+    records += reflect(config, state, deciders)
+    return sorted(records, key=lambda r: (r.civ, r.step))
+
+
+def reflect(config: Config, state: dict, deciders: Mapping[str, Decider]) -> list[TurnRecord]:
+    """Every reflect_every ticks, after decide, each ruler that can reflect (an LLM ruler; scripted
+    bots don't) rewrites its strategy notes, woken or not. A reflection can only write notes."""
+    now = state["tick"]
+    if now == 0 or now % config.reflect_every:
+        return []
+    seen = {civ_id: observation.observe(config, state, civ_id)
+            for civ_id in sorted(deciders) if hasattr(deciders[civ_id], "reflect")}
+    calls = {civ_id: functools.partial(deciders[civ_id].reflect, copy.deepcopy(seen[civ_id]))  # type: ignore[attr-defined]
+             for civ_id in seen}
+    answers = scheduler.call_all(calls, config.max_concurrent_calls)
+    records = []
+    for civ_id in sorted(answers):
+        answer, rejections = answers[civ_id], []
+        if isinstance(answer, Refused):
+            rejections = [dict(r) for r in answer.rejections]
+        elif isinstance(answer, str):
+            try:
+                memory.write(config, state, civ_id, memory.STRATEGY, answer, memory.OWN, now, "reflect")
+            except memory.NoteError:
+                rejections = [{"index": -1, "kind": "reflection", "reason": Reason.BAD_NOTE.value}]
+        state["civs"][civ_id]["turn"]["rejections"] += rejections  # seen with the next turn's
+        records.append(TurnRecord(now, civ_id, "reflect", seen[civ_id], answer if isinstance(answer, str) else None,
+                                  tuple(rejections)))
+    return records

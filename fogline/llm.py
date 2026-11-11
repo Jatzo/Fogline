@@ -53,7 +53,12 @@ class MockAdapter:
         self.memory: dict[str, dict] = {civ: {} for civ in self.deciders}
 
     def call(self, key: Key, observation: dict) -> Outcome:
-        _, civ, _ = key
+        _, civ, step = key
+        if step == "reflect":  # a plain summary, so the reflection path runs in every mock game
+            seen = observation["observation"]
+            text = (f"Tick {seen['tick']}: {seen['population']} people, stability {seen['stability']}, "
+                    f"researching {seen['research']['tech'] or 'nothing'}.")
+            return Outcome(OK, canonical_json({"strategy": text}))
         reply = dict(self.deciders[civ](copy.deepcopy(observation), copy.deepcopy(self.memory[civ])) or {})
         self.memory[civ] = reply.pop("memory", self.memory[civ])
         return Outcome(OK, canonical_json(reply))
@@ -143,15 +148,24 @@ def load_outputs(path: Path) -> list[dict]:
         return [json.loads(line) for line in handle if line.strip()]
 
 
-def make_ruler(adapter: Adapter, civ_id: str, step: str = "decide") -> Decider:
+def make_ruler(adapter: Adapter, civ_id: str) -> Decider:
     """A decider that asks the adapter. A timeout or error is an empty turn; text that fails
-    schema.validate_reply is refused with its reason, which the civ sees next turn."""
+    schema.validate_reply is refused with its reason, which the civ sees next turn. The decider's
+    reflect() asks for new strategy notes the same way (turns.reflect calls it)."""
 
     def decide(observation: dict, scratch: dict):
-        outcome = adapter.call((observation["tick"], civ_id, step), observation)
+        outcome = adapter.call((observation["tick"], civ_id, "decide"), observation)
         if outcome.status != OK:
             return None
         reply, rejections = schema.validate_reply(outcome.raw)
         return reply if reply is not None else Refused(tuple(rejections))
 
+    def reflect(observation: dict):
+        outcome = adapter.call((observation["tick"], civ_id, "reflect"), {"step": "reflect", "observation": observation})
+        if outcome.status != OK:
+            return None
+        text, rejections = schema.validate_reflection(outcome.raw)
+        return text if text is not None else Refused(tuple(rejections))
+
+    decide.reflect = reflect  # type: ignore[attr-defined]
     return decide

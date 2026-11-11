@@ -246,6 +246,12 @@ class Config:
     invalid_turns_before_skip: int = 3
     max_concurrent_calls: int = 5  # rulers called at once in a tick (rules 16)
 
+    # Memory (PLAN section 8)
+    journal_entries: int = 16
+    journal_chars: int = 200
+    strategy_chars: int = 800
+    reflect_every: int = 8  # ticks between reflections (two in-world years)
+
     # Providence (rules 19)
     events_enabled: bool = True
     world_event_chance: int = 20

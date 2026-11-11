@@ -79,6 +79,28 @@ def validate_reply(text: object) -> tuple[dict | None, list[dict]]:
     return reply, []
 
 
+def validate_reflection(text: object) -> tuple[str | None, list[dict]]:
+    """A reflection's raw text: exactly {"strategy": "..."}. The length is checked when it is
+    written (memory.write), so a long one comes back as bad_note."""
+
+    def refuse(detail: str, reason: Reason = Reason.UNPARSEABLE_REPLY) -> tuple[None, list[dict]]:
+        return None, [{"index": -1, "kind": detail, "reason": reason.value}]
+
+    if not isinstance(text, str):
+        return refuse("not_text")
+    if len(text) > MAX_REPLY_CHARS:
+        return refuse("too_long")
+    if text_depth(text) > MAX_DEPTH:
+        return refuse("too_deep")
+    try:
+        reply = json.loads(text)
+    except ValueError:
+        return refuse("not_json")
+    if not isinstance(reply, dict) or set(reply) != {"strategy"} or not isinstance(reply["strategy"], str):
+        return refuse("reflection", Reason.MALFORMED)
+    return reply["strategy"], []
+
+
 def _arg_schema(arg: Arg) -> dict:
     if arg.kind == "str":
         return {"type": "string", "maxLength": arg.max_len}

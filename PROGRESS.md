@@ -96,5 +96,7 @@ Milestones: M8 observation and sea border, M9 schemas and the frontier rule, M10
 
 - [x] M11 `fogline/scheduler.py` calls woken rulers together (cap 5) and applies replies in civ order; the recorder writes under a lock (parallel calls had interleaved lines); `run --llm bots|mock|replay|live --llm-civs --outputs --prompt`, with mode, civs, outputs and model in the manifest and call counts by status in the summary. A 200-tick mock run on seed 1: 558 calls in 4.6 s, replayed to the same hash in 3.1 s. Plan correction: a tick is a season, so the per-season budget is the existing one decide call per civ per tick; deferral comes with reflection in M12. 230 tests.
 
+- [x] M12 `fogline/memory.py`: journal (16 × 200 characters) and strategy notes (800), written only through `memory.write` with a source tag and provenance; `set_note` action (own inference only); the observation shows journal and strategy, and trims old journal entries after the distant map and before events; LLM rulers reflect every 8 ticks after decide as step `reflect` (the mock writes a plain summary), scripted bots don't. No budget deferral: one decide plus one reflection per civ per tick can't go over. 242 tests.
+
 ## Next session
-M12 (memory) or M13 (prompts and the first live ruler) next. Before each live experiment, check a tiny call's input tokens again (ADR 0007).
+M13: the ruler prompt and Verdance culture (drafts for the operator to edit and approve), the mock ruler, the prompt-leak check, and the 200-tick mock run. Before each live experiment, check a tiny call's input tokens again (ADR 0007).

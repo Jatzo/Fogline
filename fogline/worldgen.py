@@ -9,7 +9,7 @@ ledger under the WORLDGEN rule.
 
 from math import isqrt
 
-from fogline import layout, ledger, rng, sight, units
+from fogline import layout, ledger, memory, rng, sight, units
 from fogline.config import Config
 from fogline.paths import CODE_FOR, path_costs
 from fogline.state import tile_key
@@ -397,6 +397,7 @@ def _found_civ(config: Config, state: dict, seed: int, attempt: int, civ: str,
         "temperament": {"generosity": spec.generosity, "ruthlessness": spec.ruthlessness,
                         "insularity": spec.insularity},
         "bot_memory": {},
+        "memory": memory.empty(),
         "allocation": dict(config.default_allocation),
         "tools_short": False,
         "food_window": [],

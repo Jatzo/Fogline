@@ -10,7 +10,7 @@ import re
 from collections.abc import Mapping
 from typing import Any
 
-from fogline import rules, sight, techs, units
+from fogline import memory, rules, sight, techs, units
 from fogline.config import Config
 from fogline.intmath import PER_MILLE, floor_div
 from fogline.state import canonical_json, parse_tile_key, tile_key
@@ -48,6 +48,8 @@ FIELDS: Mapping[str, Any] = {
     "foreign_sites": [{"civ": str, "tile": str}],
     "met": [str],
     "events": [_EVENT],
+    "journal": [{"tick": int, "text": str, "source": str}],
+    "strategy": str,
     "elided": [str],
 }
 
@@ -142,6 +144,7 @@ def observe(config: Config, state: dict, civ_id: str, raised: list[dict] | None 
         x, y = parse_tile_key(tile)
         known[relative(state, civ_id, tile)] = world_map["biome"][y][x]
     seen_stocks = civ["turn"]["seen_stocks"]
+    journal, strategy = memory.view(state, civ_id)
     observation = {
         "tick": now,
         "season": rules.season(now),
@@ -184,6 +187,8 @@ def observe(config: Config, state: dict, civ_id: str, raised: list[dict] | None 
                           for sid, site in sorted(civ["sites"].items()) if state["settlements"][sid]["civ"] in met],
         "met": sorted(civ_name(config, other) for other in met),
         "events": _events(config, state, civ_id),
+        "journal": journal,
+        "strategy": strategy,
         "elided": [],
     }
     _fit(observation)
@@ -197,7 +202,8 @@ def size(observation: dict) -> int:
 
 def _fit(observation: dict) -> None:
     """Trim to MAX_CHARS: known tiles more than NEAR from any own settlement or unit become counts
-    per biome, then the oldest events go, then the farthest remaining known tiles, until it fits."""
+    per biome, then the oldest journal entries go, then the oldest events, then the farthest
+    remaining known tiles, until it fits."""
     if size(observation) <= MAX_CHARS:
         return
     anchors = [parse_tile_key(item["tile"]) for item in observation["settlements"] + observation["units"]]
@@ -215,7 +221,11 @@ def _fit(observation: dict) -> None:
         observation["known_elsewhere"] = dict(sorted(counts.items()))
 
     fold([tile for tile in observation["known"] if reach(tile) > NEAR])
-    budget = MAX_CHARS - 120  # room for the two elided notes added at the end
+    budget = MAX_CHARS - 180  # room for the elided notes added at the end
+    forgotten = 0
+    while size(observation) > budget and observation["journal"]:
+        observation["journal"].pop(0)
+        forgotten += 1
     dropped = 0
     while size(observation) > budget and observation["events"]:
         observation["events"].pop(0)
@@ -226,5 +236,7 @@ def _fit(observation: dict) -> None:
         fold([by_reach.pop() for _ in range(min(len(by_reach), over // 10 + 1))])  # an entry is about 12 chars
     if counts:
         observation["elided"].append(f"{sum(counts.values())} distant known tiles shown as counts by biome")
+    if forgotten:
+        observation["elided"].append(f"{forgotten} oldest journal entries")
     if dropped:
         observation["elided"].append(f"{dropped} oldest events")

@@ -10,7 +10,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 
-from fogline import construction, rules, sight, techs, units
+from fogline import construction, memory, rules, sight, techs, units
 from fogline.config import Config
 from fogline.state import parse_tile_key, tile_key
 
@@ -50,6 +50,7 @@ class Reason(StrEnum):
     UNKNOWN_GROUND = "unknown_ground"
     UNREACHABLE = "unreachable"
     NOT_IN_TERRITORY = "not_in_territory"
+    BAD_NOTE = "bad_note"
 
 
 # ------------------------------------------------------------------ handlers
@@ -191,6 +192,15 @@ def disband_unit(config: Config, state: dict, civ_id: str, unit: str, log: Log =
     return None
 
 
+def set_note(config: Config, state: dict, civ_id: str, text: str, log: Log = None) -> Reason | None:
+    """Add a line to the civ's own journal. Always tagged as its own inference (memory.OWN)."""
+    try:
+        memory.write(config, state, civ_id, memory.JOURNAL, text, memory.OWN, state["tick"], "decide")
+    except memory.NoteError:
+        return Reason.BAD_NOTE
+    return None
+
+
 # ------------------------------------------------------------------ the table and the boundary
 
 
@@ -232,6 +242,7 @@ def action_table(config: Config) -> Mapping[str, ActionSpec]:
                                               "unit_kind": _enum(config.units, Reason.UNKNOWN_UNIT_KIND)}),
         "move_unit": ActionSpec(move_unit, {"unit": Arg("str"), "to": Arg("tile")}),
         "disband_unit": ActionSpec(disband_unit, {"unit": Arg("str")}),
+        "set_note": ActionSpec(set_note, {"text": Arg("str", max_len=config.journal_chars)}),
     }
 
 
