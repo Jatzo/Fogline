@@ -245,6 +245,14 @@ class Config:
     invalid_turns_before_skip: int = 3
     max_concurrent_calls: int = 5  # rulers called at once in a tick (rules 16)
 
+    # Messages and couriers (rules 7)
+    message_chars: int = 600  # after hardening
+    message_raw_chars: int = 2000  # what an order may carry before hardening
+    messages_per_contact: int = 2  # per tick
+    courier_pace: int = 8  # movement points a tick
+    inbox_size: int = 8
+    quote_chars: int = 80  # a foreign claim kept in memory, and the most a note may share with a message
+
     # Reputation (rules 11)
     reputation_drift_every: int = 4
 

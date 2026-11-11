@@ -11,7 +11,7 @@ getrandbits and have been stable across CPython versions. random() returns float
 import hashlib
 import random
 
-SYSTEMS = frozenset({"worldgen", "combat", "unrest", "rebellion", "events",
+SYSTEMS = frozenset({"worldgen", "combat", "unrest", "rebellion", "events", "messages",
                      "mock"})  # mock: the test ruler's own draws (fogline/agents/mock_ruler.py), never the engine's
 WORLD = "world"
 

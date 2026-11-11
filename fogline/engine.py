@@ -9,7 +9,7 @@ draw comes from a fresh rng stream.
 from collections.abc import Mapping
 from typing import Any
 
-from fogline import construction, ledger, reputation, rng, rules, sight, techs, turns, units, worldgen
+from fogline import construction, ledger, messages, reputation, rng, rules, sight, techs, turns, units, worldgen
 from fogline.config import BASICS, RESOURCES, Config
 from fogline.intmath import PER_MILLE, ceil_div, floor_div, per_mille
 from fogline.layout import EXTRACTION, biome_name, is_land, node_tiles, occupied_tiles
@@ -37,6 +37,7 @@ def tick(config: Config, state: dict, log: Log = None, *,
     _production(config, state, now, log, scratch)
     _research(config, state, now, log)
     units.move_all(config, state, now)
+    messages.deliver(config, state, now)  # couriers due this tick, after movement (rules 7)
     sight.update(config, state, now)
     _consumption(config, state, now, log, scratch)
     _events(config, state, now, log, scratch)

@@ -157,6 +157,7 @@ def _build(config: Config, seed: int, attempt: int) -> dict:
         "events": [],
         "units": {},
         "reputation": reputation.initial(config, civ_ids),
+        "couriers": [],
     }
 
     for civ in civ_ids:
@@ -399,6 +400,7 @@ def _found_civ(config: Config, state: dict, seed: int, attempt: int, civ: str,
                         "insularity": spec.insularity},
         "bot_memory": {},
         "memory": memory.empty(),
+        "inbox": [],
         "allocation": dict(config.default_allocation),
         "tools_short": False,
         "food_window": [],

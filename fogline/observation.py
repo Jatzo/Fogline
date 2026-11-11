@@ -48,7 +48,8 @@ FIELDS: Mapping[str, Any] = {
     "foreign_sites": [{"civ": str, "tile": str}],
     "met": [{"name": str, "standing": str}],
     "events": [_EVENT],
-    "journal": [{"tick": int, "text": str, "source": str}],
+    "journal": [{"tick": int, "text": str, "source": str, "about": str}],
+    "messages": [{"from": str, "sent": int, "hearsay": bool, "text": str}],
     "strategy": str,
     "elided": [str],
 }
@@ -58,7 +59,7 @@ _PUNCTUATION = "()[]{}<>.,;:!?'\"`"
 
 # Shown only once the civ has met someone. Before that even an empty list, or a key named
 # foreign_sites, would tell a ruler that other peoples exist.
-AFTER_CONTACT = frozenset({"in_view", "foreign_sites", "met"})
+AFTER_CONTACT = frozenset({"in_view", "foreign_sites", "met", "messages"})
 
 
 class ObservationError(ValueError):
@@ -202,7 +203,9 @@ def observe(config: Config, state: dict, civ_id: str, raised: list[dict] | None 
         "met": [{"name": civ_name(config, other), "standing": reputation.word(state["reputation"][civ_id][other])}
                 for other in sorted(met)],
         "events": _events(config, state, civ_id),
-        "journal": journal,
+        "journal": [{**e, "about": civ_name(config, e["about"]) if e["about"] else ""} for e in journal],
+        "messages": [{"from": civ_name(config, m["from"]), "sent": m["sent"], "hearsay": m["hearsay"], "text": m["text"]}
+                     for m in civ["inbox"]],
         "strategy": strategy,
         "elided": [],
     }
@@ -254,6 +257,12 @@ def _fit(observation: dict) -> None:
         fold([by_reach.pop() for _ in range(min(len(by_reach), over // 10 + 1))])  # an entry is about 12 chars
     if counts:
         observation["elided"].append(f"{sum(counts.values())} distant known tiles shown as counts by biome")
+    unread = 0
+    while size(observation) > budget and observation.get("messages"):
+        observation["messages"].pop(0)
+        unread += 1
+    if unread:
+        observation["elided"].append(f"{unread} oldest messages")
     cut = 0
     while size(observation) > budget and observation["rejections"]:
         observation["rejections"].pop(0)

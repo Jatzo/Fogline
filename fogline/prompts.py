@@ -6,6 +6,7 @@ how many there are, or the size of the map; tests/test_prompts.py checks every r
 """
 
 import json
+from collections.abc import Sequence
 from pathlib import Path
 
 from fogline import schema
@@ -19,9 +20,9 @@ def has_culture(civ_id: str) -> bool:
     return (PROMPTS / "cultures" / f"{civ_id}.md").exists()
 
 
-def system_prompt(config: Config, civ_id: str, met: bool = False) -> str:
-    """The civ's system prompt. Once it has met someone (met), the schema adds the wake triggers
-    that only make sense with others."""
+def system_prompt(config: Config, civ_id: str, met: Sequence[str] = ()) -> str:
+    """The civ's system prompt. met is the names of the civs it has met; once there are any, the
+    schema adds the contact actions, fields and wake triggers."""
     if not has_culture(civ_id):
         raise ValueError(f"no culture prompt for {civ_id} (prompts/cultures/{civ_id}.md)")
     ruler = (PROMPTS / "ruler.md").read_text(encoding="utf-8")
@@ -30,10 +31,10 @@ def system_prompt(config: Config, civ_id: str, met: bool = False) -> str:
             .replace("{{CULTURE}}", culture))
 
 
-def has_met(payload: dict) -> bool:
-    """Whether the observation in a decide or reflect payload shows any met civ."""
+def met_names(payload: dict) -> list[str]:
+    """The met civs' names shown in a decide or reflect payload's observation."""
     seen = payload.get("observation", payload)
-    return bool(seen.get("met"))
+    return sorted(m["name"] for m in seen.get("met", []))
 
 
 def user_message(payload: dict) -> str:

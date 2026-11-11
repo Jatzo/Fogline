@@ -10,7 +10,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 
-from fogline import construction, memory, rules, sight, techs, units
+from fogline import construction, memory, messages, rules, sight, techs, units
 from fogline.config import Config
 from fogline.state import parse_tile_key, tile_key
 
@@ -51,6 +51,8 @@ class Reason(StrEnum):
     UNREACHABLE = "unreachable"
     NOT_IN_TERRITORY = "not_in_territory"
     BAD_NOTE = "bad_note"
+    TOO_MANY_MESSAGES = "too_many_messages"
+    EMPTY_MESSAGE = "empty_message"
 
 
 # ------------------------------------------------------------------ handlers
@@ -202,12 +204,44 @@ def met_civ(config: Config, state: dict, civ_id: str, name: object) -> str | Non
                  if config.civ(other).name.lower() == wanted), None)
 
 
-def set_note(config: Config, state: dict, civ_id: str, text: str, log: Log = None) -> Reason | None:
-    """Add a line to the civ's own journal. Always tagged as its own inference (memory.OWN)."""
+def set_note(config: Config, state: dict, civ_id: str, text: str, about: str | None = None,
+             quote: bool | None = None, log: Log = None) -> Reason | None:
+    """Add a line to the civ's journal, about a met civ if it names one. A quote is kept as a
+    foreign claim of at most quote_chars; anything else is the civ's own inference, and may not
+    copy a received message (memory.write refuses that)."""
+    subject = ""
+    if about is not None:
+        subject = met_civ(config, state, civ_id, about)
+        if subject is None:
+            return Reason.UNKNOWN_CIV
+    if quote:
+        if not subject or len(text) > config.quote_chars:
+            return Reason.BAD_NOTE
+        source = memory.FOREIGN
+    else:
+        source = memory.OWN
     try:
-        memory.write(config, state, civ_id, memory.JOURNAL, text, memory.OWN, state["tick"], "decide")
+        memory.write(config, state, civ_id, memory.JOURNAL, text, source, state["tick"], "decide", about=subject)
     except memory.NoteError:
         return Reason.BAD_NOTE
+    return None
+
+
+def send_message(config: Config, state: dict, civ_id: str, to: str, text: str, log: Log = None) -> Reason | None:
+    """Hand a message to an engine courier (rules 7). Only to a met civ, at most
+    messages_per_contact a tick, and only if a land path joins the two capitals."""
+    receiver = met_civ(config, state, civ_id, to)
+    if receiver is None:
+        return Reason.UNKNOWN_CIV
+    if messages.sent_this_tick(state, civ_id, receiver) >= config.messages_per_contact:
+        return Reason.TOO_MANY_MESSAGES
+    hardened = messages.harden(config, text)
+    if not hardened:
+        return Reason.EMPTY_MESSAGE
+    arrives = messages.delivery_tick(config, state, civ_id, receiver)
+    if arrives is None:
+        return Reason.UNREACHABLE
+    messages.dispatch(config, state, civ_id, receiver, hardened, arrives)
     return None
 
 
@@ -216,9 +250,10 @@ def set_note(config: Config, state: dict, civ_id: str, text: str, log: Log = Non
 
 @dataclass(frozen=True)
 class Arg:
-    """One argument of an action. kind is "str", "int", "enum", "alloc" (percent by line) or
-    "tile" (relative "dx,dy"). An enum miss gives its own reason, so a ruler learns which name
-    was wrong rather than just that something was."""
+    """One argument of an action. kind is "str", "int", "enum", "alloc" (percent by line), "tile"
+    (relative "dx,dy"), "bool" or "civ" (a met civ's name; the schema lists only those). An enum
+    miss gives its own reason, so a ruler learns which name was wrong rather than just that
+    something was. A contact argument doesn't exist for a civ that has met no one."""
 
     kind: str
     required: bool = True
@@ -227,12 +262,14 @@ class Arg:
     high: int = 0
     choices: tuple[str, ...] = ()
     miss: Reason = Reason.BAD_ARGS
+    contact: bool = False
 
 
 @dataclass(frozen=True)
 class ActionSpec:
     handler: Callable[..., Reason | None]
     args: Mapping[str, Arg]
+    contact: bool = False  # only once the civ has met someone; before that it doesn't exist
 
 
 def _enum(choices, miss: Reason) -> Arg:
@@ -252,7 +289,11 @@ def action_table(config: Config) -> Mapping[str, ActionSpec]:
                                               "unit_kind": _enum(config.units, Reason.UNKNOWN_UNIT_KIND)}),
         "move_unit": ActionSpec(move_unit, {"unit": Arg("str"), "to": Arg("tile")}),
         "disband_unit": ActionSpec(disband_unit, {"unit": Arg("str")}),
-        "set_note": ActionSpec(set_note, {"text": Arg("str", max_len=config.journal_chars)}),
+        "set_note": ActionSpec(set_note, {"text": Arg("str", max_len=config.journal_chars),
+                                          "about": Arg("civ", required=False, contact=True),
+                                          "quote": Arg("bool", required=False, contact=True)}),
+        "send_message": ActionSpec(send_message, {"to": Arg("civ"), "text": Arg("str", max_len=config.message_raw_chars)},
+                                   contact=True),
     }
 
 
@@ -269,7 +310,13 @@ def to_map_tile(state: dict, civ_id: str, relative: object) -> str | None:
 
 
 def _check_arg(arg: Arg, value: object) -> Reason | None:
-    if arg.kind in ("str", "tile"):
+    if arg.kind == "bool":
+        if not isinstance(value, bool):
+            return Reason.BAD_ARGS
+    elif arg.kind == "civ":
+        if not isinstance(value, str) or len(value) > arg.max_len:
+            return Reason.BAD_ARGS
+    elif arg.kind in ("str", "tile"):
         if not isinstance(value, str) or len(value) > arg.max_len:
             return Reason.BAD_ARGS
     elif arg.kind == "int":
@@ -291,10 +338,11 @@ def dispatch(config: Config, state: dict, civ_id: str, raw: object, log: Log = N
     if not isinstance(raw, dict) or not isinstance(raw.get("kind"), str):
         return Reason.MALFORMED
     spec = action_table(config).get(raw["kind"])
-    if spec is None:
-        return Reason.UNKNOWN_ACTION
+    alone = not state["civs"][civ_id]["met"]
+    if spec is None or (alone and spec.contact):
+        return Reason.UNKNOWN_ACTION  # before contact, a contact action answers like a made-up one
     given = {key: value for key, value in raw.items() if key != "kind"}
-    if not set(given) <= set(spec.args):
+    if not set(given) <= {name for name, arg in spec.args.items() if not (alone and arg.contact)}:
         return Reason.BAD_ARGS
     args = {}
     for name, arg in spec.args.items():

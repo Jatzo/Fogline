@@ -116,7 +116,7 @@ def test_a_reply_nested_two_thousand_deep_is_refused_not_crashed_on(start):
 
 def test_the_schema_and_the_checks_agree_on_every_action():
     exported = {v["properties"]["kind"]["const"]: v
-                for v in schema.json_schema(CONFIG)["properties"]["actions"]["items"]["oneOf"]}
+                for v in schema.json_schema(CONFIG, ["Ironhold"])["properties"]["actions"]["items"]["oneOf"]}
     table = actions.action_table(CONFIG)
     assert set(exported) == set(table)
     for kind, spec in table.items():
@@ -134,6 +134,10 @@ def test_the_schema_and_the_checks_agree_on_every_action():
                 assert actions._check_arg(arg, 12) == "bad_args"
             elif arg.kind == "alloc":
                 assert set(prop["properties"]) <= set(engine.rules.LINES)
+            elif arg.kind == "civ":
+                assert prop["enum"] == ["Ironhold"]
+            elif arg.kind == "bool":
+                assert prop == {"type": "boolean"} and actions._check_arg(arg, 1) == "bad_args"
     limits = schema.json_schema(CONFIG)["properties"]
     assert limits["actions"]["maxItems"] == CONFIG.max_actions_per_turn
     wake = limits["end_turn"]["properties"]["next_wake"]["properties"]["ticks"]

@@ -863,6 +863,9 @@ function renderTurn(data) {
     ["Rejected", turn.rejections.length ? turn.rejections.map((r) => `${r.kind || "reply"}: ${r.reason}`).join("\n") : "none"],
     ["Journal", seen && seen.journal.length ? seen.journal.slice(-3).map((e) => `${e.tick}: ${e.text}`).join("\n") : "empty"],
     ["Strategy", (data.reflect && data.reflect.reply) || (seen && seen.strategy) || "none yet"],
+    ["Messages", seen && seen.messages && seen.messages.length
+      ? seen.messages.slice(-3).map((m) => `${m.from}, sent tick ${m.sent}${m.hearsay ? " (hearsay: names a people it has not met)" : ""}`).join("\n")
+      : "none"],
   ];
   for (const [k, v] of rows) {
     const dt = document.createElement("dt");

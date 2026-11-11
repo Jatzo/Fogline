@@ -74,10 +74,11 @@ def test_an_unmet_civ_answers_like_a_made_up_one(start):
 
 
 def test_the_schema_widens_only_after_contact():
-    alone, met = prompts.system_prompt(CONFIG, "verdance"), prompts.system_prompt(CONFIG, "verdance", met=True)
+    alone, met = prompts.system_prompt(CONFIG, "verdance"), prompts.system_prompt(CONFIG, "verdance", met=["Ironhold"])
     for trigger in ("message_received", "offer_received", "offer_expiring", "foreign_unit_sighted"):
         assert trigger not in alone and trigger in met
     assert '"contact"' not in met  # always on, so never offered
+    assert "send_message" not in alone and "send_message" in met and '"Ironhold"' in met
 
 
 def test_a_tech_a_met_civ_holds_costs_a_quarter_less(start):

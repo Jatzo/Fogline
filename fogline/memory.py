@@ -6,6 +6,8 @@ note the civ trusts as its own. Rulers write their own journal through the set_n
 rewrite their strategy in the reflection step; foreign claims arrive with messages in Phase 3.
 """
 
+from difflib import SequenceMatcher
+
 from fogline.config import Config
 
 JOURNAL, STRATEGY = "journal", "strategy"
@@ -33,14 +35,30 @@ def _plain(text: object, limit: int) -> str:
     return text
 
 
+def _copies_a_message(config: Config, state: dict, civ_id: str, text: str) -> bool:
+    """Whether text shares more than quote_chars running characters with a message the civ has
+    received, which would launder a foreign claim into the civ's own notes."""
+    for received in state["civs"][civ_id]["inbox"]:
+        plain = received["plain"]
+        match = SequenceMatcher(None, text.lower(), plain.lower(), autojunk=False).find_longest_match(
+            0, len(text), 0, len(plain))
+        if match.size > config.quote_chars:
+            return True
+    return False
+
+
 def write(config: Config, state: dict, civ_id: str, kind: str, text: object, source: str, tick: int,
-          step: str) -> None:
-    """Add a journal entry (oldest dropped past the cap) or replace the strategy notes."""
+          step: str, about: str = "") -> None:
+    """Add a journal entry (oldest dropped past the cap) or replace the strategy notes. about is
+    the met civ a journal entry concerns, if any."""
     if source not in SOURCES:
         raise NoteError(f"unknown source {source!r}")
+    if source == OWN and isinstance(text, str) and _copies_a_message(config, state, civ_id, text):
+        raise NoteError("an own note may not copy a received message; keep it as a quote")
     memory = state["civs"][civ_id]["memory"]
     if kind == JOURNAL:
-        entry = {"text": _plain(text, config.journal_chars), "source": source, "tick": tick, "step": step}
+        entry = {"text": _plain(text, config.journal_chars), "source": source, "tick": tick, "step": step,
+                 "about": about}
         memory[JOURNAL] = (memory[JOURNAL] + [entry])[-config.journal_entries:]
     elif kind == STRATEGY:
         if source != OWN:
@@ -53,5 +71,6 @@ def write(config: Config, state: dict, civ_id: str, kind: str, text: object, sou
 def view(state: dict, civ_id: str) -> tuple[list[dict], str]:
     """The journal and strategy as a ruler sees them."""
     memory = state["civs"][civ_id]["memory"]
-    journal = [{"tick": e["tick"], "text": e["text"], "source": e["source"]} for e in memory[JOURNAL]]
+    journal = [{"tick": e["tick"], "text": e["text"], "source": e["source"], "about": e.get("about", "")}
+               for e in memory[JOURNAL]]
     return journal, memory[STRATEGY]["text"]

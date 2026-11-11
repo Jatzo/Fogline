@@ -26,7 +26,7 @@ def test_the_journal_keeps_the_newest_entries_up_to_its_cap(start):
     journal = state["civs"]["verdance"]["memory"]["journal"]
     assert len(journal) == CONFIG.journal_entries
     assert journal[0]["text"] == "note 3" and journal[-1] == {"text": f"note {CONFIG.journal_entries + 2}",
-                                                               "source": memory.OWN, "tick": 18, "step": "decide"}
+                                                               "source": memory.OWN, "tick": 18, "step": "decide", "about": ""}
 
 
 @pytest.mark.parametrize("kind, text, source", [
@@ -53,7 +53,7 @@ def test_set_note_writes_the_civs_own_inference_and_shows_it_next_turn(start):
     assert actions.dispatch(CONFIG, state, "verdance",
                             {"kind": "set_note", "text": "x", "source": memory.FOREIGN}) == "bad_args"
     seen = observation.observe(CONFIG, state, "verdance")
-    assert seen["journal"] == [{"tick": 0, "text": "The east floods in spring.", "source": memory.OWN}]
+    assert seen["journal"] == [{"tick": 0, "text": "The east floods in spring.", "source": memory.OWN, "about": ""}]
 
 
 def test_llm_rulers_reflect_every_eight_ticks_and_bots_never_do(tmp_path):

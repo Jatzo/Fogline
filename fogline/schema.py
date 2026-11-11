@@ -7,6 +7,7 @@ actions.action_table(), so the schema a ruler reads and the checks it meets come
 """
 
 import json
+from collections.abc import Sequence
 from typing import Any
 
 from fogline import rules
@@ -101,7 +102,11 @@ def validate_reflection(text: object) -> tuple[str | None, list[dict]]:
     return reply["strategy"], []
 
 
-def _arg_schema(arg: Arg) -> dict:
+def _arg_schema(arg: Arg, met: Sequence[str]) -> dict:
+    if arg.kind == "civ":
+        return {"type": "string", "enum": sorted(met), "description": "a people you have met, by name"}
+    if arg.kind == "bool":
+        return {"type": "boolean"}
     if arg.kind == "str":
         return {"type": "string", "maxLength": arg.max_len}
     if arg.kind == "tile":
@@ -117,13 +122,17 @@ def _arg_schema(arg: Arg) -> dict:
     raise ValueError(f"no schema for argument kind {arg.kind!r}")
 
 
-def json_schema(config: Config, met: bool = False) -> dict:
-    """The JSON Schema of a reply, built from the action table and the end_turn limits. Before a
-    civ has met anyone it lists only the wake triggers a civ alone can use."""
+def json_schema(config: Config, met: Sequence[str] = ()) -> dict:
+    """The JSON Schema of a reply, built from the action table and the end_turn limits. met is the
+    names of the civs this one has met. Before it has met anyone the schema has no contact
+    actions, no contact fields and only the wake triggers a civ alone can use."""
     variants = []
     for kind, spec in sorted(action_table(config).items()):
-        properties = {"kind": {"const": kind}} | {name: _arg_schema(arg) for name, arg in spec.args.items()}
-        required = ["kind"] + [name for name, arg in spec.args.items() if arg.required]
+        if spec.contact and not met:
+            continue
+        args = {name: arg for name, arg in spec.args.items() if met or not arg.contact}
+        properties = {"kind": {"const": kind}} | {name: _arg_schema(arg, met) for name, arg in args.items()}
+        required = ["kind"] + [name for name, arg in args.items() if arg.required]
         variants.append({"type": "object", "properties": properties, "required": required,
                          "additionalProperties": False})
     from fogline.turns import CONTACT_TRIGGERS, OWN_TRIGGERS  # turns imports this module, so this waits

@@ -91,14 +91,14 @@ class LiveAdapter:
     tools, no MCP servers and no saved session. Without safe mode, Claude Code builds the
     operator's own instructions and hook output into every call (ADR 0007)."""
 
-    def __init__(self, prompt_for: Callable[[str, bool], str], model: str = MODEL, timeout: float = 90.0,
+    def __init__(self, prompt_for: Callable[[str, list[str]], str], model: str = MODEL, timeout: float = 90.0,
                  command: tuple[str, ...] = ("claude",)):
-        """prompt_for(civ, met) gives the civ's system prompt; it changes once the civ meets someone."""
+        """prompt_for(civ, met names) gives the civ's system prompt; it changes as the civ meets others."""
         self.prompt_for, self.model, self.timeout, self.command = prompt_for, model, timeout, command
 
     def call(self, key: Key, observation: dict) -> Outcome:
         argv = [*self.command, "-p", "--safe-mode", "--model", self.model, "--output-format", "json",
-                "--system-prompt", self.prompt_for(key[1], prompts.has_met(observation)), "--tools", "",
+                "--system-prompt", self.prompt_for(key[1], prompts.met_names(observation)), "--tools", "",
                 "--strict-mcp-config",
                 "--no-session-persistence"]
         with tempfile.TemporaryDirectory() as empty:
