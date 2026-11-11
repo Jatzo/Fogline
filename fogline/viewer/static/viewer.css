@@ -120,6 +120,23 @@ select {
 
 .hint { margin-top: 1.5rem; color: var(--muted); font-size: 0.85rem; }
 
+.turn { margin-top: 1.5rem; padding-top: 0.75rem; border-top: 1px solid var(--line); }
+.turn .run-pick { margin-bottom: 0.6rem; }
+.turn .facts dd { white-space: pre-line; overflow-wrap: anywhere; }
+.turn details { margin-top: 0.6rem; font-size: 0.85rem; }
+.turn summary { cursor: pointer; color: var(--muted); }
+.raw {
+  max-height: 16rem;
+  overflow: auto;
+  margin: 0.4rem 0 0;
+  padding: 0.5rem 0.6rem;
+  background: var(--ground-deep);
+  border: 1px solid var(--line);
+  font: 0.75rem/1.4 ui-monospace, "Cascadia Mono", Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .time {
   grid-area: time;
   display: flex;

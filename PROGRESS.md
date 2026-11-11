@@ -100,5 +100,7 @@ Milestones: M8 observation and sea border, M9 schemas and the frontier rule, M10
 
 - [x] M13 `prompts/ruler.md` and `prompts/cultures/verdance.md` (approved by the operator 2026-11-11), `fogline/prompts.py` builds one system prompt per civ, `run --llm live` uses them (no `--prompt` flag), the mock ruler (builder plus `set_note`, a seeded bad order about one turn in ten), the prompt-leak check and the Phase 2 check over a recorded 200-tick game. The leak check found two leaks, both fixed: the schema listed wake triggers that only make sense with others (`contact`, `foreign_unit_sighted` and so on), and the observation carried `met`, `in_view` and `foreign_sites` from tick 0. Phase 2 run: 678 calls (120 reflections) on seed 1, replayed to the same hash. 247 tests.
 
+- [x] M14 the civ inspector: `/api/runs/{name}/turns?civ=&tick=` (the run found through the listing; civ and tick only compared with records) returns a civ's latest turn and reflection at or before a tick, with the stored output; the viewer's "Ruler's turn" panel follows the time-lapse when paused and shows why the civ woke, the outcome, orders, rejections, journal, strategy, the raw reply and the full observation, all through textContent. Checked in the browser on a 200-tick mock run. 249 tests.
+
 ## Next session
-M14: the civ inspector in the viewer. Then the end-of-phase review. Before each live experiment, check a tiny call's input tokens again (ADR 0007).
+Phase 2 end-of-phase code review, then Phase 3 in plan mode. Before each live experiment, check a tiny call's input tokens again (ADR 0007). To watch the mock run: `python -m fogline.viewer --runs runs`, pick p2-mock.

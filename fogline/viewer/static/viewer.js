@@ -58,6 +58,8 @@ let pulses = [];         // { x, y, ink, start }
 let selected = null;     // settlement id
 let animating = false;   // a pulse redraw is already queued
 let loading = 0;         // counts loads, so a slower earlier one can't win
+let runName = "";
+let asking = 0;          // counts turn requests, for the same reason
 
 // ---------- small helpers ----------
 
@@ -822,6 +824,57 @@ function renderTown() {
   }
 }
 
+// ---------- a ruler's turn ----------
+
+function orderText(action) {
+  const { kind, ...rest } = action;
+  const args = Object.entries(rest).map(([k, v]) => `${k} ${typeof v === "string" ? v : JSON.stringify(v)}`);
+  return args.length ? `${kind}: ${args.join(", ")}` : String(kind);
+}
+
+async function loadTurn() {
+  if (!run || timer) return;  // while the time-lapse plays, wait for it to stop
+  const mine = ++asking;
+  const civ = $("turn-civ").value;
+  const tick = run.frames[at].tick;
+  const url = `/api/runs/${encodeURIComponent(runName)}/turns?civ=${encodeURIComponent(civ)}&tick=${tick}`;
+  const data = await getJSON(url);
+  if (mine === asking) renderTurn(data);
+}
+
+function renderTurn(data) {
+  const turn = data.decide;
+  const facts = $("turn-facts");
+  facts.replaceChildren();
+  if (!turn) {
+    setText($("turn-sub"), `${civName(data.civ)} has not taken a turn by tick ${data.tick}.`);
+    setText($("turn-raw"), "");
+    setText($("turn-seen"), "");
+    return;
+  }
+  const seen = turn.observation;
+  const woke = seen ? seen.triggers.map((t) => (t.detail ? `${t.trigger} (${t.detail})` : t.trigger)).join(", ") : "";
+  setText($("turn-sub"), seen ? `Turn at tick ${turn.tick}, woken by ${woke || "nothing"}` : `Turn at tick ${turn.tick} was skipped`);
+  const reply = turn.reply && typeof turn.reply === "object" ? turn.reply : null;
+  const orders = reply && Array.isArray(reply.actions) ? reply.actions : [];
+  const rows = [
+    ["Outcome", turn.output ? turn.output.status : "scripted bot, nothing stored"],
+    ["Orders", orders.length ? orders.map(orderText).join("\n") : "none"],
+    ["Rejected", turn.rejections.length ? turn.rejections.map((r) => `${r.kind || "reply"}: ${r.reason}`).join("\n") : "none"],
+    ["Journal", seen && seen.journal.length ? seen.journal.slice(-3).map((e) => `${e.tick}: ${e.text}`).join("\n") : "empty"],
+    ["Strategy", (data.reflect && data.reflect.reply) || (seen && seen.strategy) || "none yet"],
+  ];
+  for (const [k, v] of rows) {
+    const dt = document.createElement("dt");
+    const dd = document.createElement("dd");
+    setText(dt, k);
+    setText(dd, v);
+    facts.append(dt, dd);
+  }
+  setText($("turn-raw"), turn.output ? turn.output.raw : JSON.stringify(turn.reply, null, 2));
+  setText($("turn-seen"), seen ? JSON.stringify(seen, null, 2) : "Nothing: the turn was skipped.");
+}
+
 function renderTime() {
   const tick = run.frames[at].tick;
   $("scrub").value = String(at);
@@ -847,6 +900,7 @@ function show(index, animate) {
   renderCivs();
   renderTown();
   renderTime();
+  loadTurn().catch(fail);
 }
 
 // ---------- time controls ----------
@@ -865,7 +919,10 @@ function play() {
 function stop() {
   clearInterval(timer);
   timer = null;
-  if (run) renderTime();
+  if (run) {
+    renderTime();
+    loadTurn().catch(fail);
+  }
 }
 
 // ---------- map interaction ----------
@@ -943,6 +1000,16 @@ async function loadRun(name) {
   if (mine !== loading) return;
   terrain = painted;
   run = loaded;
+  runName = name;
+  const pick = $("turn-civ");
+  pick.replaceChildren();
+  for (const civ of run.world.civs) {
+    const option = document.createElement("option");
+    option.value = civ.id;
+    setText(option, civ.name);
+    pick.append(option);
+  }
+  pick.value = (run.manifest.llm_civs && run.manifest.llm_civs[0]) || run.world.civs[0].id;
   const px = run.world.size * TILE;
   canvas.width = canvas.height = px;
   $("scrub").max = String(run.frames.length - 1);
@@ -973,6 +1040,7 @@ async function start() {
       return;
     }
     select.addEventListener("change", () => loadRun(select.value).catch(fail));
+    $("turn-civ").addEventListener("change", () => loadTurn().catch(fail));
     await loadRun(runs[0].name);
   } catch (error) {
     fail(error);

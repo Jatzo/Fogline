@@ -67,5 +67,32 @@ def create_app(runs_dir: Path) -> FastAPI:
             raise HTTPException(404, "No run with that name.")
         return load_run(folder)
 
+    @app.get("/api/runs/{name}/turns")
+    def turns(name: str, civ: str, tick: int) -> dict:
+        folder = list_runs(runs_dir).get(name)
+        if folder is None:
+            raise HTTPException(404, "No run with that name.")
+        return civ_turn(folder, civ, tick)
+
     app.mount("/", StaticFiles(directory=STATIC, html=True), name="static")
     return app
+
+
+def _lines(path: Path) -> list[dict]:
+    if not path.is_file():
+        return []
+    with open(path, encoding="utf-8") as handle:
+        return [json.loads(line) for line in handle if line.strip()]
+
+
+def civ_turn(folder: Path, civ: str, tick: int) -> dict:
+    """The civ's latest turn and latest reflection at or before tick, with the stored output for
+    each when the run kept outputs. civ and tick are only compared with records, never used as paths."""
+    mine = [r for r in _lines(folder / "turns.jsonl") if r["civ"] == civ and r["tick"] <= tick]
+    outputs = {(r["tick"], r["civ"], r["step"]): r for r in _lines(folder / "outputs.jsonl") if r["civ"] == civ}
+    found: dict = {"civ": civ, "tick": tick}
+    for step in ("decide", "reflect"):
+        record = max((r for r in mine if r["step"] == step), key=lambda r: r["tick"], default=None)
+        output = outputs.get((record["tick"], civ, step)) if record else None
+        found[step] = record and {**record, "output": output and {"status": output["status"], "raw": output["raw"]}}
+    return found

@@ -38,6 +38,24 @@
       <dl id="town-facts" class="facts"></dl>
     </section>
     <p id="town-hint" class="hint">Click a town on the map to read about it.</p>
+
+    <section class="turn" aria-labelledby="turn-title">
+      <h2 id="turn-title">Ruler's turn</h2>
+      <label class="run-pick">
+        <span>Civ</span>
+        <select id="turn-civ"></select>
+      </label>
+      <p id="turn-sub" class="town-sub"></p>
+      <dl id="turn-facts" class="facts"></dl>
+      <details>
+        <summary>Reply as sent</summary>
+        <pre id="turn-raw" class="raw"></pre>
+      </details>
+      <details>
+        <summary>What it saw</summary>
+        <pre id="turn-seen" class="raw"></pre>
+      </details>
+    </section>
   </aside>
 
   <footer class="time">

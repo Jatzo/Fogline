@@ -113,3 +113,29 @@ def test_the_page_never_writes_markup_from_data(name):
     assert len(text) > 500, f"{name} is missing or empty"
     assert not SINKS.findall(text), SINKS.findall(text)
     assert not INLINE_HANDLER.search(text)
+
+
+@pytest.fixture(scope="module")
+def mock_client(tmp_path_factory):
+    runs = tmp_path_factory.mktemp("inspector")
+    run.play(Config(), 1, 20, out=runs / "mock-run", mode="mock", llm_civs=["verdance"])
+    return TestClient(create_app(runs), base_url="http://127.0.0.1")
+
+
+def test_the_inspector_returns_a_rulers_latest_turn_with_its_stored_output(mock_client):
+    found = mock_client.get("/api/runs/mock-run/turns", params={"civ": "verdance", "tick": 12}).json()
+    decide = found["decide"]
+    assert decide["civ"] == "verdance" and decide["step"] == "decide" and decide["tick"] <= 12
+    assert decide["output"]["status"] == "ok" and json.loads(decide["output"]["raw"])["end_turn"]
+    assert decide["observation"]["tick"] == decide["tick"]
+    assert found["reflect"]["tick"] == 8 and found["reflect"]["output"]["status"] == "ok"
+
+
+def test_the_inspector_answers_plainly_when_there_is_nothing_to_show(mock_client, client):
+    early = mock_client.get("/api/runs/mock-run/turns", params={"civ": "verdance", "tick": -1}).json()
+    assert early["decide"] is None and early["reflect"] is None
+    odd = mock_client.get("/api/runs/mock-run/turns", params={"civ": "../../etc", "tick": 20}).json()
+    assert odd["decide"] is None  # a civ name is only compared with records, never used as a path
+    scripted = client.get("/api/runs/town-run/turns", params={"civ": "verdance", "tick": 40}).json()
+    assert scripted["decide"]["output"] is None  # a bots run keeps no outputs
+    assert mock_client.get("/api/runs/no-such-run/turns", params={"civ": "verdance", "tick": 1}).status_code == 404
