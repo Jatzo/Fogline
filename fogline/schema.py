@@ -33,6 +33,30 @@ def depth(value: Any) -> int:
     return deepest
 
 
+def text_depth(text: str) -> int:
+    """How deeply brackets nest in JSON text, ignoring brackets inside strings. Read before
+    parsing, so the parser never meets deep input: whether json.loads survives a very deep text
+    depends on the platform's recursion limit, and a reply must get the same answer everywhere."""
+    deepest = level = 0
+    in_string = escaped = False
+    for char in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+        elif char == '"':
+            in_string = True
+        elif char in "[{":
+            level += 1
+            deepest = max(deepest, level)
+        elif char in "]}":
+            level -= 1
+    return deepest
+
+
 def validate_reply(text: object) -> tuple[dict | None, list[dict]]:
     """Turn a ruler's raw text into a reply dict, or None with the rejection that explains why.
     Never raises on what a ruler sends."""
@@ -44,12 +68,12 @@ def validate_reply(text: object) -> tuple[dict | None, list[dict]]:
         return refuse("not_text")
     if len(text) > MAX_REPLY_CHARS:
         return refuse("too_long")
+    if text_depth(text) > MAX_DEPTH:
+        return refuse("too_deep")
     try:
         reply = json.loads(text)
-    except (ValueError, RecursionError):
+    except ValueError:
         return refuse("not_json")
-    if depth(reply) > MAX_DEPTH:
-        return refuse("too_deep")
     if not isinstance(reply, dict) or not set(reply) <= REPLY_KEYS:
         return None, [{"index": -1, "kind": "reply", "reason": Reason.MALFORMED.value}]
     return reply, []

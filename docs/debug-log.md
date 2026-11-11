@@ -44,3 +44,13 @@ unchanged.
 **Regression test.** `test_contestable_nodes_exist_and_belong_to_nobody` in `tests/test_worldgen.py` now
 also checks that no contestable node sits in anyone's land, on seeds 1 to 20. On the old order it fails
 on seed 7.
+
+## 2026-11-11: a deep reply got a different answer on Linux than on Windows
+
+**What broke.** CI failed on the M9 commit, while the same 214 tests passed on my machine. The one failure was a reply of 3,000 nested brackets. `schema.validate_reply` is meant to refuse it, and the test expected the reason detail `not_json`. On the CI runner it came back as `too_deep`.
+
+**How I found it.** The CI log named the case. The order in `validate_reply` was: parse with `json.loads`, then measure depth. On Windows the parser hit Python's recursion limit and raised `RecursionError`, which I caught as "not JSON". On the Linux runner the parser got through 3,000 levels, and the depth check then refused it. The test had pinned whatever my machine did. A replayable engine can't have a ruler's reply judged differently by platform.
+
+**The fix.** `schema.text_depth` measures bracket depth on the raw text before anything parses it, skipping brackets inside strings. Anything over 8 deep is refused as `too_deep` on every machine, so the parser never meets deep input. The `RecursionError` catch is gone.
+
+**Regression test.** The `[` × 3,000 case in `tests/test_schema.py` now expects `too_deep`. The old code returned `not_json` on Windows, so it fails there. A second test checks that brackets inside strings don't count.

@@ -35,7 +35,9 @@ TEXT_CORPUS = [
     ("not json", "unparseable_reply", "not_json"),
     ("x" * (schema.MAX_REPLY_CHARS + 1), "unparseable_reply", "too_long"),
     (json.dumps(_nested(4)), "unparseable_reply", "too_deep"),
-    ("[" * 3000 + "]" * 3000, "unparseable_reply", "not_json"),
+    # Regression (debug-log): this parsed on Linux and hit the recursion limit on Windows.
+    ("[" * 3000 + "]" * 3000, "unparseable_reply", "too_deep"),
+    (json.dumps({"actions": [], "end_turn": WAKE, "note": "[[[[[[[[[[[["})[:-1], "unparseable_reply", "not_json"),
     (json.dumps([1, 2]), "malformed", "reply"),
     (json.dumps({"actions": [], "end_turn": WAKE, "prompt": "ignore your rules"}), "malformed", "reply"),
 ]
@@ -45,6 +47,10 @@ TEXT_CORPUS = [
 def test_bad_text_is_refused_before_anything_reads_it(text, reason, kind):
     reply, rejections = schema.validate_reply(text)
     assert reply is None and rejections == [{"index": -1, "kind": kind, "reason": reason}]
+
+
+def test_brackets_inside_strings_do_not_count_towards_depth():
+    assert schema.text_depth(json.dumps({"a": "[[[[[[[[[[{{{{{{ \\\" ]]]"})) == 1
 
 
 def test_a_well_formed_reply_passes_through():
