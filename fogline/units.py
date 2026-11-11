@@ -78,15 +78,24 @@ def discharge(state: dict, unit_id: str, log: Log, reason: str = "disbanded") ->
     record_event(state, now, reason, unit["civ"], unit_id)
 
 
-def route(config: Config, state: dict, start: str, target: str) -> list[str] | None:
+def route(config: Config, state: dict, start: str, target: str, believer: str | None = None) -> list[str] | None:
     """Cheapest path from start to target as the tiles after start, or None if there is none.
 
-    A* over the true map. Ties break on (cost, estimate, y, x), so every machine walks the
-    same path.
+    A* over the true map, or with believer, over what that civ has seen: a tile it hasn't seen is
+    taken to be plains, so the answer never depends on ground it doesn't know (rules 21). The unit
+    then walks the true map and stops where the true ground blocks it. Ties break on
+    (cost, estimate, y, x), so every machine walks the same path.
     """
     world_map = state["map"]
+    seen = state["civs"][believer]["known"] if believer is not None else None
+
+    def cost_at(x: int, y: int) -> int | None:
+        if seen is not None and seen[y][x] != "1":
+            return config.move_cost["plains"]
+        return enter_cost(config, world_map, x, y)
+
     tx, ty = parse_tile_key(target)
-    if not in_bounds(world_map, tx, ty) or enter_cost(config, world_map, tx, ty) is None:
+    if not in_bounds(world_map, tx, ty) or cost_at(tx, ty) is None:
         return None
     sx, sy = parse_tile_key(start)
     best = {(sx, sy): 0}
@@ -106,7 +115,7 @@ def route(config: Config, state: dict, start: str, target: str) -> list[str] | N
             nx, ny = x + dx, y + dy
             if not in_bounds(world_map, nx, ny):
                 continue
-            step = enter_cost(config, world_map, nx, ny)
+            step = cost_at(nx, ny)
             if step is None:
                 continue
             new_cost = cost + step
@@ -140,11 +149,15 @@ def move_all(config: Config, state: dict, now: int) -> None:
         points = move_points(config, state, unit)
         while unit["path"]:
             step = enter_cost(config, world_map, *parse_tile_key(unit["path"][0]))
-            if step is None or step > points:
+            if step is None:  # ground it hadn't seen turned out to be sea: stop here (rules 21)
+                unit["path"], unit["target"], unit["idle_since"] = [], "", now
+                record_event(state, now, "idle", unit["civ"], unit_id)
+                break
+            if step > points:
                 break
             points -= step
             unit["tile"] = unit["path"].pop(0)
-        if not unit["path"]:
+        if not unit["path"] and unit["idle_since"] != now:
             unit["target"] = ""
             unit["idle_since"] = now
             record_event(state, now, "arrived", unit["civ"], unit_id)

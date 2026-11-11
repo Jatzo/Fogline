@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any, TypedDict
 
-from fogline import actions, observation
+from fogline import actions, observation, schema
 from fogline.actions import Reason
 from fogline.config import RESOURCES, Config
 from fogline.state import StateError, check_plain, record_event
@@ -149,7 +149,7 @@ def _apply(config: Config, state: dict, civ_id: str, seen: dict | None, reply: o
     malformed = False  # a garbled reply counts as a wholly invalid turn, so it can't dodge the skip
     if reply is None:
         parsed: tuple | Reason = (config.heartbeat_ticks, [], None)
-    elif not isinstance(reply, dict):
+    elif not isinstance(reply, dict) or schema.depth(reply) > schema.MAX_DEPTH:
         malformed = True
         reject(-1, "", Reason.MALFORMED)
         parsed = Reason.BAD_END_TURN
@@ -195,7 +195,9 @@ def _apply(config: Config, state: dict, civ_id: str, seen: dict | None, reply: o
     else:
         turn["invalid_streak"] = 0  # an empty turn resets the streak too (rules 21)
     turn["rejections"] = rejections
-    return TurnRecord(now, civ_id, "decide", seen, copy.deepcopy(reply), tuple(rejections))
+    too_deep = isinstance(reply, (dict, list)) and schema.depth(reply) > schema.MAX_DEPTH
+    kept = "(reply nested too deep to keep)" if too_deep else copy.deepcopy(reply)
+    return TurnRecord(now, civ_id, "decide", seen, kept, tuple(rejections))
 
 
 def step(config: Config, state: dict, deciders: Mapping[str, Decider] | None, log: list | None) -> list[TurnRecord]:

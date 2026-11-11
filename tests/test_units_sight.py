@@ -170,31 +170,57 @@ def test_move_unit_reason_codes(start):
     assert move(CONFIG, state, "verdance", "nobody", known[0]) == "unknown_unit"
     # A real foreign id must answer like a made-up one, or the reply names a civ before contact.
     assert move(CONFIG, state, "verdance", "ironhold-u0", known[0]) == "unknown_unit"
-    far = next(tile_key(x, y) for y in range(64) for x in range(64)
+    far = next(tile_key(x, y) for y in range(72) for x in range(72)
                if not sight.near_known(state, "verdance", tile_key(x, y), CONFIG.order_margin))
     assert move(CONFIG, state, "verdance", "verdance-u0", far) == "unknown_ground"
     actions.train_unit(CONFIG, state, "verdance", "verdance-0", "scout")
     assert move(CONFIG, state, "verdance", "verdance-u1", known[0]) == "in_training"
 
+
+
+def _sea_near(state, civ_id, seen):
+    size = state["map"]["size"]
+    return [tile_key(x, y) for y in range(size) for x in range(size) if state["map"]["biome"][y][x] == "S"
+            and sight.is_known(state, civ_id, x, y) == seen
+            and sight.near_known(state, civ_id, tile_key(x, y), CONFIG.order_margin)]
+
+
+def test_only_seen_ground_can_make_a_move_target_unreachable(start):
+    # Rules 21 (Phase 2): an unseen target near known ground is always accepted, sea or not, so a
+    # move order can't be used to probe terrain the civ hasn't seen.
+    state = _fresh(start)
+    for _ in range(12):  # let the starting scouts look around
+        engine.tick(CONFIG, state, deciders={c: bots.spiral_scout for c in state["civs"]})
     for civ_id in sorted(state["civs"]):
-        scout = units.of_civ(state, civ_id)[0]
-        sea = [tile_key(x, y) for y in range(64) for x in range(64) if state["map"]["biome"][y][x] == "S"
-               and sight.near_known(state, civ_id, tile_key(x, y), CONFIG.order_margin)]
-        if sea:
-            assert move(CONFIG, state, civ_id, scout, sea[0]) == "unreachable"
-            return
-    pytest.skip("no civ starts within reach of the sea on seed 1")
+        seen_sea, unseen_sea = _sea_near(state, civ_id, True), _sea_near(state, civ_id, False)
+        scout = next((u for u in units.of_civ(state, civ_id) if units.is_ready(state, state["units"][u])), None)
+        if not (seen_sea and unseen_sea and scout):
+            continue
+        assert actions.move_unit(CONFIG, state, civ_id, scout, seen_sea[0]) == "unreachable"
+        assert actions.move_unit(CONFIG, state, civ_id, scout, unseen_sea[0]) is None
+        for _ in range(30):
+            engine.tick(CONFIG, state)
+            if not state["units"][scout]["path"]:
+                break
+        record = state["units"][scout]
+        assert record["path"] == [] and record["target"] == "" and record["tile"] != unseen_sea[0]
+        assert state["map"]["biome"][parse_tile_key(record["tile"])[1]][parse_tile_key(record["tile"])[0]] != "S"
+        assert any(e["kind"] == "idle" and e["detail"] == scout for e in state["events"])
+        _assert_conserved(state)
+        return
+    pytest.fail("no civ on seed 1 had a ready scout with seen and unseen sea near its known ground")
 
 
 def test_a_scout_walks_its_route_at_four_points_a_tick_and_arrives(start):
     state = _fresh(start)
     scout = state["units"]["verdance-u0"]
     origin = scout["tile"]
-    target, path = max(((t, units.route(CONFIG, state, origin, t)) for t in sight.known_tiles(state, "verdance")),
+    target, path = max(((t, units.route(CONFIG, state, origin, t, believer="verdance"))
+                        for t in sight.known_tiles(state, "verdance")),
                        key=lambda pair: (len(pair[1] or []), pair[0]))
     assert len(path) >= 3
     assert actions.move_unit(CONFIG, state, "verdance", "verdance-u0", target) is None
-    assert scout["path"] == units.route(CONFIG, state, origin, target)  # the same route every time
+    assert scout["path"] == units.route(CONFIG, state, origin, target, believer="verdance")  # the same route every time
     for _ in range(len(path)):
         before = scout["tile"]
         engine.tick(CONFIG, state)

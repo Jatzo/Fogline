@@ -77,7 +77,7 @@ Two reviews, one of the engine and economy and one of worldgen, turns, units, si
 
 Deferred:
 - Snapshot load doesn't check the config hash. No resume path outside the tests yet; lands with campaign resume.
-- Low: a stage drops one band per 4 ticks; a reply nested about 1,000 deep raises `RecursionError` (matters in Phase 2).
+- Low: a stage drops one band per 4 ticks. (The deep-reply `RecursionError` is fixed in M9.)
 
 Rulings and tests after the review (183 tests):
 - The 4-tick growth window counts unit food upkeep, due whether paid or not (rules 4.1 and 21). Golden hash re-pinned: every civ starts with a scout.
@@ -90,5 +90,7 @@ Milestones: M8 observation and sea border, M9 schemas and the frontier rule, M10
 ## Phase 2 milestones
 - [x] M8 sea border (map 72, land 64 inside 4 tiles of sea; tree window re-measured at 329 to 438, now 300 to 450), `observation.observe()` with a whitelist and a 12,000-character cap, bots on the same observation plus scratch memory, fog tests over 10 seeds with a metamorphic check (ADR 0006; 188 tests)
 
+- [x] M9 typed arguments in `actions.action_table()`, `schema.validate_reply()` (20,000-character cap, JSON, depth 8, top-level keys) and `schema.json_schema()` exported from the table; move orders route over the civ's seen map, so unseen sea no longer answers "unreachable"; a 2,000-deep reply is refused, not crashed on. `set_note` moves to M12 with the memory API it writes to (214 tests)
+
 ## Next session
-M9: typed schemas, reply validation and the frontier rule.
+M10: LLM adapter and stored outputs.

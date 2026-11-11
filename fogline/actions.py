@@ -3,7 +3,7 @@
 dispatch() is the only way in for an agent's action: it checks the shape, turns tiles relative
 to the civ's origin into map tiles, and calls the handler. Each handler returns None when the
 action is accepted and applied, or a Reason when it is rejected; a rejected action changes
-nothing. ACTIONS is the one list of actions; the Phase 2 tool schema will be read from it.
+nothing. action_table() is the one list of actions; the tool schema is exported from it.
 """
 
 from collections.abc import Callable, Mapping
@@ -21,6 +21,7 @@ class Reason(StrEnum):
     """Every rejection code. The M4 strings keep their values."""
 
     MALFORMED = "malformed"
+    UNPARSEABLE_REPLY = "unparseable_reply"
     UNKNOWN_ACTION = "unknown_action"
     OVER_ACTION_CAP = "over_action_cap"
     BAD_ARGS = "bad_args"
@@ -169,8 +170,8 @@ def move_unit(config: Config, state: dict, civ_id: str, unit: str, to: str, log:
     if to == record["tile"]:
         units.order(state, unit, to, [])
         return None
-    path = units.route(config, state, record["tile"], to)
-    if path is None:
+    path = units.route(config, state, record["tile"], to, believer=civ_id)
+    if path is None:  # only ground the civ has seen can make a target unreachable
         return Reason.UNREACHABLE
     units.order(state, unit, to, path)
     return None
@@ -194,20 +195,44 @@ def disband_unit(config: Config, state: dict, civ_id: str, unit: str, log: Log =
 
 
 @dataclass(frozen=True)
+class Arg:
+    """One argument of an action. kind is "str", "int", "enum", "alloc" (percent by line) or
+    "tile" (relative "dx,dy"). An enum miss gives its own reason, so a ruler learns which name
+    was wrong rather than just that something was."""
+
+    kind: str
+    required: bool = True
+    max_len: int = 40
+    low: int = 0
+    high: int = 0
+    choices: tuple[str, ...] = ()
+    miss: Reason = Reason.BAD_ARGS
+
+
+@dataclass(frozen=True)
 class ActionSpec:
     handler: Callable[..., Reason | None]
-    # Argument name -> kind: "str", "alloc", "tile" (relative "dx,dy", required) or "tile?" (optional).
-    args: Mapping[str, str]
+    args: Mapping[str, Arg]
 
 
-ACTIONS: Mapping[str, ActionSpec] = {
-    "allocate_workers": ActionSpec(allocate_workers, {"allocation": "alloc"}),
-    "set_research": ActionSpec(set_research, {"tech": "str"}),
-    "build": ActionSpec(build, {"settlement": "str", "building": "str", "tile": "tile?"}),
-    "train_unit": ActionSpec(train_unit, {"settlement": "str", "unit_kind": "str"}),
-    "move_unit": ActionSpec(move_unit, {"unit": "str", "to": "tile"}),
-    "disband_unit": ActionSpec(disband_unit, {"unit": "str"}),
-}
+def _enum(choices, miss: Reason) -> Arg:
+    return Arg("enum", choices=tuple(sorted(choices)), miss=miss)
+
+
+def action_table(config: Config) -> Mapping[str, ActionSpec]:
+    """The one list of actions and their argument types. The tool schema is exported from it
+    (fogline/schema.py), and dispatch() checks every action against it."""
+    return {
+        "allocate_workers": ActionSpec(allocate_workers, {"allocation": Arg("alloc")}),
+        "set_research": ActionSpec(set_research, {"tech": _enum(techs.TECHS, Reason.UNKNOWN_TECH)}),
+        "build": ActionSpec(build, {"settlement": Arg("str"),
+                                    "building": _enum(config.buildings, Reason.UNKNOWN_BUILDING),
+                                    "tile": Arg("tile", required=False)}),
+        "train_unit": ActionSpec(train_unit, {"settlement": Arg("str"),
+                                              "unit_kind": _enum(config.units, Reason.UNKNOWN_UNIT_KIND)}),
+        "move_unit": ActionSpec(move_unit, {"unit": Arg("str"), "to": Arg("tile")}),
+        "disband_unit": ActionSpec(disband_unit, {"unit": Arg("str")}),
+    }
 
 
 def to_map_tile(state: dict, civ_id: str, relative: object) -> str | None:
@@ -222,29 +247,48 @@ def to_map_tile(state: dict, civ_id: str, relative: object) -> str | None:
     return tile_key(ox + dx, oy + dy)
 
 
+def _check_arg(arg: Arg, value: object) -> Reason | None:
+    if arg.kind in ("str", "tile"):
+        if not isinstance(value, str) or len(value) > arg.max_len:
+            return Reason.BAD_ARGS
+    elif arg.kind == "int":
+        if not isinstance(value, int) or isinstance(value, bool) or not arg.low <= value <= arg.high:
+            return Reason.BAD_ARGS
+    elif arg.kind == "enum":
+        if not isinstance(value, str):
+            return Reason.BAD_ARGS
+        if value not in arg.choices:
+            return arg.miss
+    elif arg.kind == "alloc":
+        if not isinstance(value, dict):
+            return Reason.BAD_ALLOCATION
+    return None
+
+
 def dispatch(config: Config, state: dict, civ_id: str, raw: object, log: Log = None) -> Reason | None:
     """Check one action from a ruler and run it. Never raises on what a ruler sends."""
     if not isinstance(raw, dict) or not isinstance(raw.get("kind"), str):
         return Reason.MALFORMED
-    spec = ACTIONS.get(raw["kind"])
+    spec = action_table(config).get(raw["kind"])
     if spec is None:
         return Reason.UNKNOWN_ACTION
     given = {key: value for key, value in raw.items() if key != "kind"}
     if not set(given) <= set(spec.args):
         return Reason.BAD_ARGS
     args = {}
-    for name, kind in spec.args.items():
+    for name, arg in spec.args.items():
         if name not in given:
-            if kind == "tile?":
+            if not arg.required:
                 args[name] = None
                 continue
             return Reason.BAD_ARGS
         value = given[name]
-        if kind in ("tile", "tile?"):
+        problem = _check_arg(arg, value)
+        if problem:
+            return problem
+        if arg.kind == "tile":
             value = to_map_tile(state, civ_id, value)
             if value is None:
                 return Reason.BAD_TILE
-        elif kind == "str" and not isinstance(value, str):
-            return Reason.BAD_ARGS
         args[name] = value
     return spec.handler(config, state, civ_id, **args, log=log)

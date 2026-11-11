@@ -410,6 +410,7 @@ Where the rules above leave a choice open, the engine does this (approved 2026-1
 - **Sea border (changes 2, approved 2026-11-11):** the map is 72 × 72: the 64 × 64 land is drawn as before, then set inside 4 tiles of sea, and land touching that sea becomes coast like any shore. Sight is 2, so no unit sees past the sea to the map's end. The new shore opens the coast-gated tech for some civs, so a supplied builder now runs out of techs at tick 329 to 438 (seeds 1 to 5; 381 to 438 for civs that reach all 21), and the tree-pace window is 300 to 450.
 - **Observation (Phase 2 M8, approved 2026-11-11; ADR 0006):** a ruler sees state only through `observation.observe()`, checked against a whitelist. Trigger and event text is shown with tiles made relative and a met civ's ids replaced by its name; an event that names an unmet civ is dropped. Own and world events since the last turn are shown, with each stock's change since then. The cap is 12,000 characters.
 - **Standing orders (Phase 2, approved 2026-11-11):** worker allocation and the build queue stay persistent actions (`allocate_workers`, `build`). `end_turn` carries `next_wake` and reorder rules only (changes section 16).
+- **Replies (Phase 2 M9, approved 2026-11-11):** a ruler's raw text is refused as `unparseable_reply` when it is over 20,000 characters, isn't JSON or nests deeper than 8; a reply with any top-level key besides `actions` and `end_turn` is `malformed`. Every action argument is typed in `actions.action_table()`, and the schema a ruler reads is exported from that table. A foreign unit id answers `unknown_unit`, like a made-up one.
 - **Tool wear** is paid in full or not at all.
 - **Research pool** (ADR 0002): one pool per civ. A tech completes when the pool covers its points and the stock covers its resources, paid at completion. Switching keeps the pool; points with no tech chosen are lost until the tree is finished, when they become prestige.
 - **Build queue:** up to 5 entries per civ, one build at a time per settlement. The cost is paid when a build starts. Building happens at the end of step 7, before the score, and a new building works from the next tick. A repair takes 1 tick; a rebuild takes the normal build ticks.
@@ -421,7 +422,7 @@ Where the rules above leave a choice open, the engine does this (approved 2026-1
   - Sight is a square: a radius of 2 covers the 5 × 5 tiles around a unit or settlement.
   - A turn with no actions resets the invalid streak.
   - A unit whose food upkeep can't be paid disbands to its home settlement; its people survive.
-  - A move order's target must be within 2 tiles of ground the civ has seen; the route runs on the true map.
+  - A move order's target must be within 2 tiles of ground the civ has seen. *Changed in Phase 2 (approved 2026-11-11):* the route is planned over what the civ has seen, with unseen tiles taken as plains, so an unseen target is always accepted; the unit walks the true map and stops, going idle, where unseen ground turns out to be sea. A target is unreachable only when seen ground blocks it. Before this, an unseen sea target answered "unreachable" and leaked a 2-tile ring of terrain.
   - A skipped turn makes no call, and the civ is due again next tick with its triggers kept.
   - Training never takes a settlement's last person.
   - People serving in units count towards score population.
