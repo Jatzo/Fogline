@@ -405,6 +405,8 @@ Where the rules above leave a choice open, the engine does this (approved 2026-1
 - **Upkeep in arrears** is retried every tick. A building's bill is paid whole or not at all.
   - **Bills don't stack (approved 2026-11-11):** a building owes one bill at most. A winter that comes while it is still unpaid adds nothing; the penalty is half output for as long as the bill stays open.
 - **Growth window (changes 4.1, approved 2026-11-11):** the 4-tick window counts unit food upkeep as consumption, due whether or not it was paid, as people are counted by what they need. The 40-tick store test still counts people only.
+- **Luxury (approved 2026-11-11):** every settlement with luxury in stock uses 1 every 4 ticks (4.4a's "town" means any settlement), and a use holds the +5 stability for 4 ticks, the tick of use and the 3 after.
+- **Own land in the brief (approved 2026-11-11):** a civ's brief lists every node in its own territory, seen or not. A civ knows the land it claims.
 - **Tool wear** is paid in full or not at all.
 - **Research pool** (ADR 0002): one pool per civ. A tech completes when the pool covers its points and the stock covers its resources, paid at completion. Switching keeps the pool; points with no tech chosen are lost until the tree is finished, when they become prestige.
 - **Build queue:** up to 5 entries per civ, one build at a time per settlement. The cost is paid when a build starts. Building happens at the end of step 7, before the score, and a new building works from the next tick. A repair takes 1 tick; a rebuild takes the normal build ticks.
