@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fogline map</title>
+<link rel="stylesheet" href="viewer.css">
+<script src="viewer.js" defer></script>
+</head>
+<body>
+<div class="shell">
+  <main class="map-area">
+    <div class="map-frame">
+      <canvas id="map" width="768" height="768" tabindex="0"
+              aria-label="Map of the world. Click a town to read about it."></canvas>
+    </div>
+    <p id="readout" class="readout" aria-live="polite"></p>
+  </main>
+
+  <aside class="side">
+    <header class="run-head">
+      <h1>Fogline</h1>
+      <label class="run-pick">
+        <span>Run</span>
+        <select id="run"></select>
+      </label>
+      <p id="run-note" class="run-note"></p>
+    </header>
+
+    <section aria-labelledby="civs-title">
+      <h2 id="civs-title">Civilisations</h2>
+      <ol id="civs" class="civs"></ol>
+    </section>
+
+    <section id="town" class="town" aria-labelledby="town-title" hidden>
+      <h2 id="town-title"></h2>
+      <p id="town-sub" class="town-sub"></p>
+      <dl id="town-facts" class="facts"></dl>
+    </section>
+    <p id="town-hint" class="hint">Click a town on the map to read about it.</p>
+  </aside>
+
+  <footer class="time">
+    <button id="back" type="button" aria-label="Back a year">&#8249;</button>
+    <button id="play" type="button">Play</button>
+    <button id="forward" type="button" aria-label="Forward a year">&#8250;</button>
+    <input id="scrub" type="range" min="0" max="0" value="0" aria-label="Point in the run">
+    <output id="when" for="scrub"></output>
+  </footer>
+</div>
+<p id="status" class="status" role="status"></p>
+</body>
+</html>

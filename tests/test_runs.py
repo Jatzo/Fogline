@@ -182,11 +182,6 @@ def tree_run():
     return _supplied(2_000, 400)
 
 
-@pytest.fixture(scope="module")
-def town_run():
-    return _supplied(50_000, 200)
-
-
 @pytest.mark.parametrize("civ_id", CIVS)
 def test_a_supplied_builder_finishes_the_tree_between_tick_300_and_400(tree_run, civ_id):
     assert tree_run[1][civ_id]["tree_done"] in range(300, 401), tree_run[1][civ_id]["techs"]

@@ -39,7 +39,7 @@ Update this at the end of every Claude Code session.
 - [x] M4 tech tree, research pool, build queue, placement, contestable claims, growth stages, fishing (104 tests)
 - [x] M5 units, sight and contact, the turn path (briefs, replies, one action table with reason codes), wakes off the event log (ADR 0003), reorder rules, spiral scout bot (128 tests)
 - [x] M6 runner, snapshots, builder bot and tuning: run-out schedule and decline in isolation, tree pace and towns in a supplied world (ADR 0004), first debug-log entry (160 tests)
-- [ ] M7 viewer
+- [x] M7 read-only viewer: `fogline/view.py` frames, a local FastAPI app, a painted map with a time-lapse over snapshots, `--supply` on the runner (ADR 0005; 175 tests)
 
 ## Found in M3
 - With no bot building anything, every civ dies out by about tick 100 on seed 1: stone runs out, upkeep goes unpaid, farms become ruins, then everyone starves. Rules 4.7 expects a decline to what the land supports, not extinction. This gets checked again with scripted bots in M6 before any number changes.
@@ -62,5 +62,11 @@ Update this at the end of every Claude Code session.
 - Builder bot: farms go where people lack work (first debug-log entry), housing pauses only while timber falls and is under 100.
 - Measured with scratch probes: supplied at 2,000 (food, timber, stone, metal), every civ finishes the tree at 311 to 384 on seeds 1 to 5; supplied at 50,000, every civ has an outpost town by 132 to 175. The tests on seed 1 give 312 to 383 and 131 to 174.
 
+## M7 notes (2026-11-11)
+- To watch a run: `python -m fogline.run --seed 1 --ticks 400 --supply 50000 --no-events --out runs/demo-seed1`, then `python -m fogline.viewer --runs runs` and open http://127.0.0.1:8000.
+- On that run every civ's outposts start as hamlets and reach town; each civ ends near 1,225 people with 2 villages and 2 towns.
+- The map is painted rather than a tile grid (the operator's call): warped biome edges, trees, peaks, culture roof styles, lanes that branch, frontiers smoothed by marching squares.
+- One request loads the whole run: 4.8 MB and 0.9 s for 101 snapshots; the terrain paints once in about 1.3 s, then each frame draws in about 6 ms.
+
 ## Next session
-M7, the read-only viewer. Phase 1 still needs its code review and a passing CI run on push.
+Phase 1 end-of-phase code review, then Phase 2.

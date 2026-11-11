@@ -84,7 +84,8 @@ def play(config: Config, seed: int, ticks: int, bot: str = "builder", out: Path 
     watch = Watch(config, state)
     if out:
         out.mkdir(parents=True, exist_ok=True)
-        manifest = {"seed": seed, "ticks": ticks, "bot": bot, "config_hash": config.config_hash()}
+        manifest = {"seed": seed, "ticks": ticks, "bot": bot, "config_hash": config.config_hash(),
+                    "events_enabled": config.events_enabled, "supply": config.supply_floor}
         (out / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="ascii")
         snapshot.save(state, out / "snap-00000.json.gz")
     for _ in range(ticks):
@@ -125,9 +126,11 @@ def main() -> None:
     parser.add_argument("--ticks", type=int, default=1000)
     parser.add_argument("--bot", choices=sorted(BOTS), default="builder")
     parser.add_argument("--no-events", action="store_true", help="turn Providence events off")
+    parser.add_argument("--supply", type=int, default=0,
+                        help="test-only top-up of basics each tick (ADR 0004); 0 is off")
     parser.add_argument("--out", type=Path, help="write a run folder here, for example runs/seed1")
     args = parser.parse_args()
-    config = dataclasses.replace(Config(), events_enabled=not args.no_events)
+    config = dataclasses.replace(Config(), events_enabled=not args.no_events, supply_floor=args.supply)
     state, summary = play(config, args.seed, args.ticks, args.bot, args.out)
     _print(summary, state)
 
