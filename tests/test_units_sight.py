@@ -168,7 +168,8 @@ def test_move_unit_reason_codes(start):
     move = actions.move_unit
     known = sight.known_tiles(state, "verdance")
     assert move(CONFIG, state, "verdance", "nobody", known[0]) == "unknown_unit"
-    assert move(CONFIG, state, "verdance", "ironhold-u0", known[0]) == "not_own_unit"
+    # A real foreign id must answer like a made-up one, or the reply names a civ before contact.
+    assert move(CONFIG, state, "verdance", "ironhold-u0", known[0]) == "unknown_unit"
     far = next(tile_key(x, y) for y in range(64) for x in range(64)
                if not sight.near_known(state, "verdance", tile_key(x, y), CONFIG.order_margin))
     assert move(CONFIG, state, "verdance", "verdance-u0", far) == "unknown_ground"
@@ -212,7 +213,7 @@ def test_disbanding_sends_people_home_and_only_on_own_land(start):
     stray = units.spawn(CONFIG, state, "verdance", "scout", "verdance-0", None, pay=False, ready_now=True,
                         at=_lonely_tile(state))
     assert actions.disband_unit(CONFIG, state, "verdance", stray) == "not_in_territory"
-    assert actions.disband_unit(CONFIG, state, "ironhold", "verdance-u0") == "not_own_unit"
+    assert actions.disband_unit(CONFIG, state, "ironhold", "verdance-u0") == "unknown_unit"
     capital = state["settlements"]["verdance-0"]
     pop = capital["pop"]
     assert actions.disband_unit(CONFIG, state, "verdance", "verdance-u0") is None

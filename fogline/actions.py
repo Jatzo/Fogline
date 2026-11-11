@@ -45,7 +45,6 @@ class Reason(StrEnum):
     CANNOT_AFFORD = "cannot_afford"
     NOT_ENOUGH_PEOPLE = "not_enough_people"
     UNKNOWN_UNIT = "unknown_unit"
-    NOT_OWN_UNIT = "not_own_unit"
     IN_TRAINING = "in_training"
     UNKNOWN_GROUND = "unknown_ground"
     UNREACHABLE = "unreachable"
@@ -149,11 +148,10 @@ def train_unit(config: Config, state: dict, civ_id: str, settlement: str, unit_k
 
 
 def _own_unit(state: dict, civ_id: str, unit_id: str) -> Reason | None:
+    """A foreign unit answers the same as a missing one, so a guessed id can't reveal another civ."""
     unit = state["units"].get(unit_id)
-    if unit is None:
+    if unit is None or unit["civ"] != civ_id:
         return Reason.UNKNOWN_UNIT
-    if unit["civ"] != civ_id:
-        return Reason.NOT_OWN_UNIT
     return None
 
 
