@@ -38,15 +38,15 @@ class CivSpec:
 def _civs() -> tuple[CivSpec, ...]:
     return (
         CivSpec("ironhold", "Ironhold", "mountains", ("stone", "metal"), ("food",), "gemstones",
-                400, 450, 600, {"food": 1200, "timber": 250, "stone": 300, "metal": 200, "luxury": 0}),
+                400, 450, 600, {"food": 2000, "timber": 250, "stone": 300, "metal": 200, "luxury": 0}),
         CivSpec("verdance", "Verdance", "forest", ("food", "timber"), ("metal",), "dye",
-                800, 150, 200, {"food": 400, "timber": 300, "stone": 200, "metal": 60, "luxury": 0}),
+                800, 150, 200, {"food": 400, "timber": 300, "stone": 200, "metal": 110, "luxury": 0}),
         CivSpec("saltreach", "Saltreach", "coast", ("food", "stone"), ("timber",), "pearls",
-                500, 400, 250, {"food": 400, "timber": 150, "stone": 250, "metal": 150, "luxury": 0}),
+                500, 400, 250, {"food": 400, "timber": 550, "stone": 250, "metal": 150, "luxury": 0}),
         CivSpec("dunerunners", "Dunerunners", "desert", ("metal", "stone"), ("food", "timber"), "spice",
-                250, 800, 400, {"food": 1200, "timber": 150, "stone": 250, "metal": 200, "luxury": 0}),
+                250, 800, 400, {"food": 2000, "timber": 300, "stone": 250, "metal": 200, "luxury": 0}),
         CivSpec("frostmark", "Frostmark", "tundra", ("timber", "metal"), ("stone",), "amber",
-                450, 350, 800, {"food": 400, "timber": 300, "stone": 120, "metal": 150, "luxury": 0}),
+                450, 350, 800, {"food": 400, "timber": 300, "stone": 220, "metal": 150, "luxury": 0}),
     )
 
 
@@ -120,7 +120,7 @@ class Config:
     spoilage: int = 5
     spoilage_granary: int = 2
     fuel_people_per_unit: int = 10
-    fuel_winter_units: int = 3
+    fuel_winter_units: int = 2
     building_timber_upkeep: int = 1
     building_stone_upkeep: int = 1
     stone_building_extra_upkeep: int = 2
@@ -231,6 +231,9 @@ class Config:
     node_claim_radius: int = 1
     claim_extra_radius: int = 3
     track_passes: int = 6
+
+    # Runs
+    snapshot_every: int = 4  # one snapshot a year
 
     # Wake rules (rules 16)
     heartbeat_ticks: int = 6

@@ -138,7 +138,7 @@ def test_starving_civ_loses_a_quarter_of_its_unfed_rounded_up(start):
     assert civ["stability"] < QUIET.stability_start
 
 
-def test_unpaid_upkeep_ruins_a_building_after_eight_ticks(start):
+def test_unpaid_upkeep_ruins_buildings_after_eight_ticks_but_never_fields_or_camps(start):
     state = _fresh(start)
     civ = state["civs"]["frostmark"]
     ledger.apply(civ["stocks"], state["ledger"], None, "frostmark", "stone", -civ["stocks"]["stone"],
@@ -151,7 +151,11 @@ def test_unpaid_upkeep_ruins_a_building_after_eight_ticks(start):
     engine.run(QUIET, state, 7)
     assert all(b["arrears_ticks"] == 8 or b["ruin"] for b in capital["buildings"])
     engine.tick(QUIET, state)
-    assert all(b["ruin"] for b in capital["buildings"])
+    for building in capital["buildings"]:
+        if building["type"] in engine.EXTRACTION:  # farms, camps and mines stay, at half output
+            assert not building["ruin"] and building["arrears_ticks"] > QUIET.ruin_after_ticks
+        else:
+            assert building["ruin"]
     _assert_conserved(state)
 
 

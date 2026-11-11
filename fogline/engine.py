@@ -12,7 +12,7 @@ from typing import Any
 from fogline import construction, ledger, rng, rules, sight, techs, turns, units, worldgen
 from fogline.config import RESOURCES, Config
 from fogline.intmath import PER_MILLE, ceil_div, floor_div, per_mille
-from fogline.layout import biome_name, is_land, node_tiles, occupied_tiles
+from fogline.layout import EXTRACTION, biome_name, is_land, node_tiles, occupied_tiles
 from fogline.ledger import Rule
 from fogline.paths import is_river
 from fogline.state import parse_tile_key, record_event as _record
@@ -270,7 +270,9 @@ def _pay_upkeep(config: Config, state: dict, log: Log, civ_id: str, winter: bool
                 building["arrears_ticks"] = 0
                 continue
             building["arrears_ticks"] += 1
-            if building["arrears_ticks"] >= config.ruin_after_ticks:
+            # Farms, pastures, lumber camps and mines never ruin: they stay at half output, so a
+            # civ that runs dry declines to what its land supports instead of dying out (rules 21).
+            if building["arrears_ticks"] >= config.ruin_after_ticks and building["type"] not in EXTRACTION:
                 building.update(ruin=True, owed=False, arrears_ticks=0)
             else:
                 in_arrears = True

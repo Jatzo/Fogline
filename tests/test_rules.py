@@ -49,8 +49,8 @@ def test_specialty_and_tech_rates():
 
 def test_fuel_for_55_people():
     assert rules.fuel_needed(CONFIG, 55, "spring", harsh=False) == 5
-    assert rules.fuel_needed(CONFIG, 55, "winter", harsh=False) == 16
-    assert rules.fuel_needed(CONFIG, 55, "winter", harsh=True) == 32
+    assert rules.fuel_needed(CONFIG, 55, "winter", harsh=False) == 11  # 2 per 10 in winter
+    assert rules.fuel_needed(CONFIG, 55, "winter", harsh=True) == 22
 
 
 def test_upkeep_tool_wear_spoilage_and_deaths():

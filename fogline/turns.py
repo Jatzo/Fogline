@@ -57,6 +57,7 @@ class Brief(TypedDict):
     rejections: list[dict]
     memory: dict
     stocks: dict
+    techs: list[str]
     stability: int
     allocation: dict
     reorders: list[dict]
@@ -65,6 +66,7 @@ class Brief(TypedDict):
     settlements: list[dict]
     units: list[dict]
     known: dict
+    nodes: list[dict]  # nodes in own land: kind, tile, owning settlement, units left (-1 = endless), worked
     in_view: list[dict]
     foreign_sites: list[dict]
     met: list[str]
@@ -131,6 +133,7 @@ def brief(config: Config, state: dict, civ_id: str, raised: list[dict] | None = 
     own = sorted(sid for sid, s in state["settlements"].items() if s["civ"] == civ_id)
     met = civ["met"]
     world_map = state["map"]
+    worked = {b["tile"] for sid in own for b in state["settlements"][sid]["buildings"]}
     known = {}
     for tile in sight.known_tiles(state, civ_id):
         x, y = parse_tile_key(tile)
@@ -141,6 +144,7 @@ def brief(config: Config, state: dict, civ_id: str, raised: list[dict] | None = 
         "rejections": [dict(r) for r in civ["turn"]["rejections"]],
         "memory": copy.deepcopy(civ["bot_memory"]),
         "stocks": dict(civ["stocks"]),
+        "techs": list(civ["techs"]),
         "stability": civ["stability"],
         "allocation": dict(civ["allocation"]),
         "reorders": [dict(r) for r in civ["reorders"]],
@@ -159,6 +163,11 @@ def brief(config: Config, state: dict, civ_id: str, raised: list[dict] | None = 
                    "target": _relative(state, civ_id, state["units"][uid]["target"])}
                   for uid in units.of_civ(state, civ_id)],
         "known": known,
+        "nodes": [{"id": node_id, "kind": node["kind"], "tile": _relative(state, civ_id, node["tile"]),
+                   "settlement": state["territory"][node["tile"]], "left": node["node"] if node["finite"] else -1,
+                   "worked": node["tile"] in worked}
+                  for node_id, node in sorted(state["nodes"].items())
+                  if state["territory"].get(node["tile"]) in own],
         "in_view": [{"civ": _civ_name(config, state["units"][uid]["civ"]), "kind": state["units"][uid]["kind"],
                      "tile": _relative(state, civ_id, state["units"][uid]["tile"])}
                     for uid in civ["in_view"] if uid in state["units"] and state["units"][uid]["civ"] in met],
