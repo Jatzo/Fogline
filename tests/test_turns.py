@@ -5,7 +5,7 @@ import dataclasses
 
 import pytest
 
-from fogline import actions, bots, engine, turns, worldgen
+from fogline import actions, bots, engine, observation, turns, worldgen
 from fogline.config import Config
 from fogline.state import parse_tile_key, state_hash, tile_key
 from test_construction import _free_footprint_tile
@@ -26,7 +26,7 @@ def _fresh(start):
 
 def _scripted(replies, calls):
     """A decider that hands back canned replies in order, noting each brief it was given."""
-    def decide(brief):
+    def decide(brief, scratch):
         calls.append(brief)
         return copy.deepcopy(replies[min(len(calls), len(replies)) - 1])
     return decide
@@ -74,7 +74,7 @@ def test_only_twelve_actions_are_read_per_turn(start):
     state = _fresh(start)
     many = {"actions": [{"kind": "allocate_workers", "allocation": {"food": 100}}] * 13,
             "end_turn": {"next_wake": {"ticks": 8, "triggers": []}}}
-    record = _record_of(engine.tick(CONFIG, state, deciders={"verdance": lambda brief: many}), "verdance")
+    record = _record_of(engine.tick(CONFIG, state, deciders={"verdance": lambda brief, scratch: many}), "verdance")
     assert list(record.rejections) == [{"index": 12, "kind": "allocate_workers", "reason": "over_action_cap"}]
 
 
@@ -113,7 +113,7 @@ def test_a_subscribed_trigger_wakes_the_civ_the_next_tick(start):
     later = {"actions": [], "end_turn": {"next_wake": {"ticks": 8, "triggers": ["build_done"]}}}
     engine.run(CONFIG, state, 3, deciders={"verdance": _scripted([first, later], calls)})
     assert [b["tick"] for b in calls] == [0, 1]
-    assert {"trigger": "build_done", "detail": ""} in calls[1]["triggers"]
+    assert any(t["trigger"] == "build_done" and t["detail"].startswith("new housing at ") for t in calls[1]["triggers"])
 
 
 def test_a_skipped_turn_keeps_its_triggers(start):
@@ -123,7 +123,7 @@ def test_a_skipped_turn_keeps_its_triggers(start):
     actions.build(CONFIG, state, "verdance", "verdance-1", "housing")  # finishes during tick 0
     engine.run(CONFIG, state, 2, deciders={"verdance": _scripted([NOTHING], calls)})
     assert [b["tick"] for b in calls] == [1]
-    assert {"trigger": "build_done", "detail": ""} in calls[0]["triggers"]
+    assert any(t["trigger"] == "build_done" and t["detail"].startswith("new housing at ") for t in calls[0]["triggers"])
 
 
 def test_a_bad_end_turn_is_rejected_and_the_civ_is_asked_again(start):
@@ -138,13 +138,13 @@ def test_a_bad_end_turn_is_rejected_and_the_civ_is_asked_again(start):
 def test_bot_memory_is_kept_and_bad_memory_refused(start):
     state = _fresh(start)
 
-    def counter(brief):
-        count = brief["memory"].get("n", 0)
+    def counter(brief, scratch):
+        count = scratch.get("n", 0)
         return {**EMPTY, "memory": {"n": count + 1}}
 
     engine.run(CONFIG, state, 3, deciders={"ironhold": counter})
     assert state["civs"]["ironhold"]["bot_memory"] == {"n": 3}
-    records = engine.tick(CONFIG, state, deciders={"ironhold": lambda b: {**EMPTY, "memory": {"x": 1.5}}})
+    records = engine.tick(CONFIG, state, deciders={"ironhold": lambda b, m: {**EMPTY, "memory": {"x": 1.5}}})
     record = _record_of(records, "ironhold")
     assert {"index": -1, "kind": "memory", "reason": "bad_memory"} in record.rejections
     assert state["civs"]["ironhold"]["bot_memory"] == {"n": 3}
@@ -181,11 +181,11 @@ def test_the_trigger_table_only_names_real_triggers():
 def test_the_builder_puts_a_new_farm_where_people_lack_work_not_in_its_town(start):
     # Regression (docs/debug-log.md): seed 1 Verdance piled 32 farms on a 21-person town while its
     # 159-person capital had 4, so the civ ran short of food and every settlement stopped growing.
-    brief = turns.brief(CONFIG, _fresh(start), "verdance")
+    brief = observation.observe(CONFIG, _fresh(start), "verdance")
     capital, town = brief["settlements"][0], brief["settlements"][3]
     capital.update(pop=159, buildings=["housing"] * 20 + ["farm"] * 4 + ["lumber_camp", "mine", "workshop"])
     town.update(pop=21, buildings=["housing"] * 3 + ["farm"] * 32)
-    brief["memory"] = {"town": town["id"], "history": [[brief["tick"] - 4, 10_000, 300, 200, 110]]}
-    reply = bots.make_builder(CONFIG)(brief)
+    scratch = {"town": town["id"], "history": [[brief["tick"] - 4, 10_000, 300, 200, 110]]}
+    reply = bots.make_builder(CONFIG)(brief, scratch)
     farms = [a["settlement"] for a in reply["actions"] if a["kind"] == "build" and a["building"] == "farm"]
     assert farms == [capital["id"]]

@@ -1,7 +1,8 @@
 """Step 1 of the tick: wake and decide (docs/rules.md sections 1 and 16, ADR 0003).
 
-A ruler is a decider: a function from a Brief to a Reply. A scripted bot and an LLM ruler plug
-in the same way and never touch state. Wakes are read off state["events"] through a cursor
+A ruler is a decider: a function from an observation (fogline/observation.py, the only view of
+state a ruler gets) and its own scratch memory to a Reply. A scripted bot and an LLM ruler plug in
+the same way and never touch state; an LLM ruler ignores the scratch memory. Wakes are read off state["events"] through a cursor
 per civ and one table, EVENT_TRIGGERS, so no other module has to wake anyone.
 
 This module is the only writer of civ["turn"], civ["reorders"] and civ["bot_memory"].
@@ -13,11 +14,10 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any, TypedDict
 
-from fogline import actions, sight, techs, units
+from fogline import actions, observation
 from fogline.actions import Reason
 from fogline.config import RESOURCES, Config
-from fogline.intmath import PER_MILLE, floor_div
-from fogline.state import StateError, check_plain, parse_tile_key, record_event, tile_key
+from fogline.state import StateError, check_plain, record_event
 
 
 class Trigger(StrEnum):
@@ -48,30 +48,6 @@ EVENT_TRIGGERS: Mapping[str, Trigger] = {
 }
 
 
-class Brief(TypedDict):
-    """Everything a ruler may see. Tiles are "dx,dy" from the civ's origin; another civ appears
-    only by name, and only once it is in civ["met"]. Phase 2's observation builder renders this."""
-
-    tick: int
-    triggers: list[dict]
-    rejections: list[dict]
-    memory: dict
-    stocks: dict
-    techs: list[str]
-    stability: int
-    allocation: dict
-    reorders: list[dict]
-    research: dict
-    build_queue: list[dict]
-    settlements: list[dict]
-    units: list[dict]
-    known: dict
-    nodes: list[dict]  # nodes in own land: kind, tile, owning settlement, units left (-1 = endless), worked
-    in_view: list[dict]
-    foreign_sites: list[dict]
-    met: list[str]
-
-
 class Reply(TypedDict, total=False):
     """What a ruler returns: plain data, checked here, never trusted."""
 
@@ -80,7 +56,7 @@ class Reply(TypedDict, total=False):
     memory: dict  # scripted bots only
 
 
-Decider = Callable[[Brief], Reply]
+Decider = Callable[[dict, dict], Reply]  # (observation, scratch memory) -> reply
 
 
 @dataclass(frozen=True)
@@ -90,92 +66,14 @@ class TurnRecord:
     tick: int
     civ: str
     step: str
-    brief: Brief | None
+    observation: dict | None
     reply: Any
     rejections: tuple[dict, ...]
 
     def as_record(self) -> dict:
-        return {"tick": self.tick, "civ": self.civ, "step": self.step, "brief": self.brief, "reply": self.reply,
+        return {"tick": self.tick, "civ": self.civ, "step": self.step, "observation": self.observation,
+                "reply": self.reply,
                 "rejections": list(self.rejections)}
-
-
-# ------------------------------------------------------------------ the brief
-
-
-def _relative(state: dict, civ_id: str, tile: str) -> str:
-    if not tile:
-        return ""
-    ox, oy = parse_tile_key(state["civs"][civ_id]["origin"])
-    x, y = parse_tile_key(tile)
-    return tile_key(x - ox, y - oy)
-
-
-def _civ_name(config: Config, civ_id: str) -> str:
-    return config.civ(civ_id).name
-
-
-def _trigger_view(config: Config, state: dict, raised: dict) -> dict:
-    """A trigger as the ruler sees it: no event text, which can hold map tiles."""
-    detail = ""
-    if raised["trigger"] == Trigger.CONTACT:
-        detail = _civ_name(config, raised["detail"])
-    elif raised["trigger"] == Trigger.FOREIGN_UNIT_SIGHTED and raised["detail"] in state["units"]:
-        detail = _civ_name(config, state["units"][raised["detail"]]["civ"])
-    elif raised["trigger"] == Trigger.STOCK_BELOW_THRESHOLD:
-        detail = raised["detail"]
-    return {"trigger": raised["trigger"], "detail": detail}
-
-
-def brief(config: Config, state: dict, civ_id: str, raised: list[dict] | None = None) -> Brief:
-    """The one brief builder: step 1, tests and the Phase 2 inspector all use it."""
-    civ = state["civs"][civ_id]
-    now = state["tick"]
-    own = sorted(sid for sid, s in state["settlements"].items() if s["civ"] == civ_id)
-    met = civ["met"]
-    world_map = state["map"]
-    worked = {b["tile"] for sid in own for b in state["settlements"][sid]["buildings"]}
-    known = {}
-    for tile in sight.known_tiles(state, civ_id):
-        x, y = parse_tile_key(tile)
-        known[_relative(state, civ_id, tile)] = world_map["biome"][y][x]
-    return {
-        "tick": now,
-        "triggers": [_trigger_view(config, state, r) for r in (raised or [])],
-        "rejections": [dict(r) for r in civ["turn"]["rejections"]],
-        "memory": copy.deepcopy(civ["bot_memory"]),
-        "stocks": dict(civ["stocks"]),
-        "techs": list(civ["techs"]),
-        "stability": civ["stability"],
-        "allocation": dict(civ["allocation"]),
-        "reorders": [dict(r) for r in civ["reorders"]],
-        "research": {"tech": civ["research"]["tech"], "points": floor_div(civ["research"]["points_milli"], PER_MILLE),
-                     "available": techs.available(state, civ_id)},
-        "build_queue": [{"settlement": e["settlement"], "building": e["building"], "mode": e["mode"],
-                         "tile": _relative(state, civ_id, e["tile"]), "started": e["started"],
-                         "ticks_left": e["ticks_left"]} for e in civ["build_queue"]],
-        "settlements": [{"id": sid, "name": state["settlements"][sid]["name"],
-                         "tile": _relative(state, civ_id, state["settlements"][sid]["tile"]),
-                         "stage": state["settlements"][sid]["stage"], "pop": state["settlements"][sid]["pop"],
-                         "buildings": [b["type"] for b in state["settlements"][sid]["buildings"]]} for sid in own],
-        "units": [{"id": uid, "kind": state["units"][uid]["kind"], "pop": state["units"][uid]["pop"],
-                   "tile": _relative(state, civ_id, state["units"][uid]["tile"]),
-                   "ready": units.is_ready(state, state["units"][uid]),
-                   "target": _relative(state, civ_id, state["units"][uid]["target"])}
-                  for uid in units.of_civ(state, civ_id)],
-        "known": known,
-        "nodes": [{"id": node_id, "kind": node["kind"], "tile": _relative(state, civ_id, node["tile"]),
-                   "settlement": state["territory"][node["tile"]], "left": node["node"] if node["finite"] else -1,
-                   "worked": node["tile"] in worked}
-                  for node_id, node in sorted(state["nodes"].items())
-                  if state["territory"].get(node["tile"]) in own],
-        "in_view": [{"civ": _civ_name(config, state["units"][uid]["civ"]), "kind": state["units"][uid]["kind"],
-                     "tile": _relative(state, civ_id, state["units"][uid]["tile"])}
-                    for uid in civ["in_view"] if uid in state["units"] and state["units"][uid]["civ"] in met],
-        "foreign_sites": [{"civ": _civ_name(config, state["settlements"][sid]["civ"]),
-                           "tile": _relative(state, civ_id, site["tile"])}
-                          for sid, site in sorted(civ["sites"].items()) if state["settlements"][sid]["civ"] in met],
-        "met": sorted(_civ_name(config, other) for other in met),
-    }
 
 
 # ------------------------------------------------------------------ wakes
@@ -236,7 +134,7 @@ def _parse_end_turn(config: Config, raw: object) -> tuple[int, list[str], list[d
     return ticks, sorted(set(triggers)), reorders
 
 
-def _apply(config: Config, state: dict, civ_id: str, brief_sent: Brief | None, reply: object,
+def _apply(config: Config, state: dict, civ_id: str, seen: dict | None, reply: object,
            log: list | None) -> TurnRecord:
     """Apply one reply. No reply (no decider, or a Phase 2 timeout) is an empty turn."""
     now = state["tick"]
@@ -297,11 +195,11 @@ def _apply(config: Config, state: dict, civ_id: str, brief_sent: Brief | None, r
     else:
         turn["invalid_streak"] = 0  # an empty turn resets the streak too (rules 21)
     turn["rejections"] = rejections
-    return TurnRecord(now, civ_id, "decide", brief_sent, copy.deepcopy(reply), tuple(rejections))
+    return TurnRecord(now, civ_id, "decide", seen, copy.deepcopy(reply), tuple(rejections))
 
 
 def step(config: Config, state: dict, deciders: Mapping[str, Decider] | None, log: list | None) -> list[TurnRecord]:
-    """Step 1. Every due civ's brief is built before any reply is applied, then the deciders are
+    """Step 1. Every due civ's observation is built before any reply is applied, then the deciders are
     called (a plain loop now; Phase 2 makes this the concurrent part), then replies are applied in
     civ id order. The cursor moves when a decider is called, so anything recorded later waits for
     the next wake. A skipped turn leaves the cursor alone, so its triggers are kept."""
@@ -313,7 +211,7 @@ def step(config: Config, state: dict, deciders: Mapping[str, Decider] | None, lo
     due = {civ_id: why for civ_id in civ_ids if (why := _due(config, state, civ_id, now))}
 
     records: list[TurnRecord] = []
-    briefs: dict[str, Brief | None] = {}
+    seen: dict[str, dict | None] = {}
     for civ_id in sorted(due):
         turn = state["civs"][civ_id]["turn"]
         if turn["skip_next"]:
@@ -322,11 +220,14 @@ def step(config: Config, state: dict, deciders: Mapping[str, Decider] | None, lo
             record_event(state, now, "turn_skipped", civ_id, "")
             records.append(TurnRecord(now, civ_id, "decide", None, None, ()))
             continue
-        briefs[civ_id] = brief(config, state, civ_id, due[civ_id]) if civ_id in deciders else None
+        seen[civ_id] = observation.observe(config, state, civ_id, due[civ_id]) if civ_id in deciders else None
         turn["last_woke"] = now
-    for civ_id in briefs:
-        state["civs"][civ_id]["turn"]["cursor"] = len(state["events"])
-    replies = {civ_id: (deciders[civ_id](briefs[civ_id]) if civ_id in deciders else None) for civ_id in briefs}
-    for civ_id in sorted(briefs):
-        records.append(_apply(config, state, civ_id, briefs[civ_id], replies[civ_id], log))
+    for civ_id in seen:
+        turn = state["civs"][civ_id]["turn"]
+        turn["cursor"] = len(state["events"])
+        turn["seen_stocks"] = dict(state["civs"][civ_id]["stocks"])  # stock_changes count from here
+    replies = {civ_id: (deciders[civ_id](copy.deepcopy(seen[civ_id]), copy.deepcopy(state["civs"][civ_id]["bot_memory"]))
+                        if civ_id in deciders else None) for civ_id in seen}
+    for civ_id in sorted(seen):
+        records.append(_apply(config, state, civ_id, seen[civ_id], replies[civ_id], log))
     return sorted(records, key=lambda r: r.civ)

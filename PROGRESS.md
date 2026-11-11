@@ -84,5 +84,11 @@ Rulings and tests after the review (183 tests):
 - Luxury +5 holds for 4 ticks and every settlement uses luxury; a civ's brief lists nodes on all its own land (rules 21, no code change).
 - Behaviour tests for tool shortage, cold deaths, luxury use, drought and comet durations and the secession idle window; each fails when its rule is broken.
 
+## Phase 2 plan (approved 2026-11-11)
+Milestones: M8 observation and sea border, M9 schemas and the frontier rule, M10 LLM adapter and stored outputs, M11 scheduler and runner, M12 memory, M13 prompts and the 200-tick mock run, M14 civ inspector. Decisions: live calls through a `claude -p` subprocess on the plan login; schemas from `ACTIONS` with no new dependency; allocation and the build queue stay persistent actions; the inspector is a viewer panel; a sea border; unseen move targets are always accepted (M9).
+
+## Phase 2 milestones
+- [x] M8 sea border (map 72, land 64 inside 4 tiles of sea; tree window re-measured at 329 to 438, now 300 to 450), `observation.observe()` with a whitelist and a 12,000-character cap, bots on the same observation plus scratch memory, fog tests over 10 seeds with a metamorphic check (ADR 0006; 188 tests)
+
 ## Next session
-Phase 2 in plan mode.
+M9: typed schemas, reply validation and the frontier rule.

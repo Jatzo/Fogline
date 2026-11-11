@@ -1,8 +1,8 @@
-"""Scripted rulers. Each is a decider: a Brief in, a Reply out, and nothing else.
+"""Scripted rulers. Each is a decider: an observation and its scratch memory in, a Reply out.
 
-They see what an LLM ruler will see (tiles relative to their capital, no unmet civ), so the
-1,000-tick runs exercise the same path Phase 2 plugs into. Anything a bot remembers between
-turns goes back in the reply's memory, which the engine keeps in state.
+They see exactly what an LLM ruler sees (fogline/observation.py), so the 1,000-tick runs exercise
+the same path. Anything a bot remembers between turns goes back in the reply's memory, which the
+engine keeps in state and never shows to an LLM.
 """
 
 import copy
@@ -11,7 +11,7 @@ from fogline import techs
 from fogline.config import Config
 from fogline.intmath import ceil_div
 from fogline.state import parse_tile_key
-from fogline.turns import Brief, Decider, Reply
+from fogline.turns import Decider, Reply
 
 # Waypoints sit on square rings round the capital: corners and edge midpoints, 4 tiles apart,
 # so each leg reveals fresh ground for a scout that sees 2 tiles each way.
@@ -35,7 +35,7 @@ def spiral_point(leg: int) -> str:
     return f"{dx * ring * RING_STEP},{dy * ring * RING_STEP}"
 
 
-def _scout_moves(brief: Brief, memory: dict) -> tuple[list[dict], bool]:
+def _scout_moves(brief: dict, memory: dict) -> tuple[list[dict], bool]:
     """Orders for idle scouts, and whether a waypoint was turned down last turn. A turned-down
     waypoint is already behind the counter, so the caller just checks back sooner."""
     leg = memory.get("leg", 0)
@@ -49,16 +49,16 @@ def _scout_moves(brief: Brief, memory: dict) -> tuple[list[dict], bool]:
     return moves, retry
 
 
-def spiral_scout(brief: Brief) -> Reply:
+def spiral_scout(brief: dict, scratch: dict) -> Reply:
     """Send each idle scout to the next waypoint of a widening spiral."""
-    memory = dict(brief["memory"])
+    memory = dict(scratch)
     moves, retry = _scout_moves(brief, memory)
     return {"actions": moves,
             "end_turn": {"next_wake": {"ticks": 1 if retry else 8, "triggers": ["unit_arrived", "unit_idle"]}},
             "memory": memory}
 
 
-def idle(brief: Brief) -> Reply:
+def idle(brief: dict, scratch: dict) -> Reply:
     """A ruler that does nothing and checks in every 8 ticks."""
     return {"actions": [], "end_turn": {"next_wake": {"ticks": 8, "triggers": []}}}
 
@@ -72,8 +72,8 @@ def make_builder(config: Config, food_short: bool = False) -> Decider:
     def count(settlement: dict, building: str) -> int:
         return settlement["buildings"].count(building)
 
-    def decide(brief: Brief) -> Reply:
-        memory = copy.deepcopy(brief["memory"])
+    def decide(brief: dict, scratch: dict) -> Reply:
+        memory = copy.deepcopy(scratch)
         now = brief["tick"]
         stocks = brief["stocks"]
         actions: list[dict] = []

@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from fogline import actions, bots, engine, ledger, rules, sight, units, worldgen
+from fogline import actions, bots, engine, ledger, observation, rules, sight, units, worldgen
 from fogline.config import Config
 from fogline.layout import is_land, square
 from fogline.state import parse_tile_key, tile_key
@@ -83,7 +83,7 @@ def test_the_known_map_grows_and_briefs_show_it_relative_to_the_capital(start):
     units.spawn(CONFIG, state, "verdance", "scout", "verdance-0", None, pay=False, ready_now=True, at=tile)
     engine.tick(CONFIG, state)
     assert sight.is_known(state, "verdance", *parse_tile_key(tile))
-    brief = engine.turns.brief(CONFIG, state, "verdance")
+    brief = observation.observe(CONFIG, state, "verdance")
     ox, oy = parse_tile_key(state["civs"]["verdance"]["origin"])
     x, y = parse_tile_key(tile)
     assert "0,0" in brief["known"] and tile_key(x - ox, y - oy) in brief["known"]
@@ -101,9 +101,9 @@ def test_contact_is_logged_both_ways_and_wakes_both_civs(start):
     seen = {}
 
     def record(civ_id):
-        def decide(brief):
+        def decide(brief, scratch):
             seen[civ_id] = brief
-            return bots.idle(brief)
+            return bots.idle(brief, scratch)
         return decide
 
     for civ_id in ("ironhold", "verdance"):  # asleep for a long while; only contact can wake them
@@ -120,9 +120,9 @@ def test_no_brief_mentions_another_civ_before_contact(start):
     briefs = []
 
     def watch(civ_id):
-        def decide(brief):
+        def decide(brief, scratch):
             briefs.append((civ_id, brief))
-            return bots.spiral_scout(brief)
+            return bots.spiral_scout(brief, scratch)
         return decide
 
     engine.run(CONFIG, state, 60, deciders={c: watch(c) for c in state["civs"]})
