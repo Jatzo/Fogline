@@ -176,3 +176,16 @@ def test_spiral_scout_runs_are_deterministic_and_conserved():
 def test_the_trigger_table_only_names_real_triggers():
     assert set(turns.EVENT_TRIGGERS.values()) <= set(turns.Trigger)
     assert turns.ALWAYS_ON <= set(turns.Trigger)
+
+
+def test_the_builder_puts_a_new_farm_where_people_lack_work_not_in_its_town(start):
+    # Regression (docs/debug-log.md): seed 1 Verdance piled 32 farms on a 21-person town while its
+    # 159-person capital had 4, so the civ ran short of food and every settlement stopped growing.
+    brief = turns.brief(CONFIG, _fresh(start), "verdance")
+    capital, town = brief["settlements"][0], brief["settlements"][3]
+    capital.update(pop=159, buildings=["housing"] * 20 + ["farm"] * 4 + ["lumber_camp", "mine", "workshop"])
+    town.update(pop=21, buildings=["housing"] * 3 + ["farm"] * 32)
+    brief["memory"] = {"town": town["id"], "history": [[brief["tick"] - 4, 10_000, 300, 200, 110]]}
+    reply = bots.make_builder(CONFIG)(brief)
+    farms = [a["settlement"] for a in reply["actions"] if a["kind"] == "build" and a["building"] == "farm"]
+    assert farms == [capital["id"]]

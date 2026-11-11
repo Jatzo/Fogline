@@ -55,9 +55,12 @@ Update this at the end of every Claude Code session.
 - Experiment on seeds 1 to 3 (not yet approved): stocks Ironhold food 2000, Dunerunners food 2000 and timber 300, Saltreach timber 400, Frostmark stone 220, Verdance metal 110, winter fuel 2 per 10, and two bot rules (mine a metal node when metal falls; no new housing while timber falls). Run-out: Ironhold food 54 to 79, Dunerunners food 54 to 84 and timber 23 to 58, Saltreach timber 39 to 53, Frostmark stone 63, Verdance metal 83 to 87. Every civ's food output is at least 33% below its peak by tick 100. Tool wear at 1 per 40 workers changed nothing.
 - Still failing: no civ gets past 13 of 21 techs by tick 400, and no outpost passes 10 people by tick 400.
 
-## Waiting on a decision
-- Tree pace: no civ gets past 13 of 21 techs by tick 400 (target: tree done at 300 to 400). Era 2 costs metal and era 3 luxury, both near 0; food-short civs shrink to 18 to 32 people and have few scholars.
-- Outpost to town: no outpost passes 10 people by tick 400 (target: town by 200). 15 per mille on 5 people is one birth every 13 ticks, and any civ-wide food deficit stops growth.
+## M6 part 2 decisions (approved 2026-11-11)
+- Cause found: in isolation every civ's timber nets to about zero by tick 40, so the library and workshop become ruins and research stops at tick 100. Tree costs were not the problem.
+- Tree pace and towns are measured in a supplied world (stand-in for trade, ADR 0004); the isolation tests stay unsupplied.
+- Era points doubled (160, 480, 1,200); growth may also run on a store of 40 ticks of eating; starting stocks Ironhold food 1,500, Dunerunners timber 650, Saltreach timber 600.
+- Builder bot: farms go where people lack work (first debug-log entry), housing pauses only while timber falls and is under 100.
+- Measured with scratch probes: supplied at 2,000 (food, timber, stone, metal), every civ finishes the tree at 311 to 384 on seeds 1 to 5; supplied at 50,000, every civ has an outpost town by 132 to 175.
 
 ## Next session
 M6 part 2: options for tree pace and outpost growth, then their tests. Then M7, the viewer.

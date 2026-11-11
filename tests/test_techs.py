@@ -24,10 +24,10 @@ def _fresh(start):
     return state
 
 
-def test_the_tree_has_21_nodes_and_4040_points():
+def test_the_tree_has_21_nodes_and_8080_points():
     assert len(techs.TECHS) == 21
     assert sum(1 for t in techs.TECHS.values() if t.era == 0) == 4
-    assert sum(techs.cost(CONFIG, t)[0] for t, spec in techs.TECHS.items() if spec.era) == 4040
+    assert sum(techs.cost(CONFIG, t)[0] for t, spec in techs.TECHS.items() if spec.era) == 8080
 
 
 def test_every_prerequisite_exists_and_comes_from_an_earlier_era():
@@ -38,7 +38,7 @@ def test_every_prerequisite_exists_and_comes_from_an_earlier_era():
 
 def test_tech_speed_scales_points_not_resources():
     slow = dataclasses.replace(CONFIG, tech_speed=1500)
-    assert techs.cost(slow, "writing") == (120, {"timber": 20})
+    assert techs.cost(slow, "writing") == (240, {"timber": 20})
 
 
 def test_set_research_reason_codes(start):
@@ -60,7 +60,7 @@ def test_a_tech_completes_when_the_pool_covers_it_and_is_paid_once(start):
     state = _fresh(start)
     civ = state["civs"]["verdance"]
     actions.set_research(CONFIG, state, "verdance", "crop_rotation")
-    civ["research"]["points_milli"] = 80_000
+    civ["research"]["points_milli"] = 160_000
     engine.tick(CONFIG, state)
     assert "crop_rotation" in civ["techs"]
     assert civ["research"] == {"tech": "", "points_milli": 0}
@@ -73,10 +73,10 @@ def test_a_finished_but_unpaid_tech_waits_with_its_points(start):
     ledger.apply(civ["stocks"], state["ledger"], None, "saltreach", "timber", -civ["stocks"]["timber"],
                  ledger.Rule.RIOT, 0)
     actions.set_research(CONFIG, state, "saltreach", "writing")
-    civ["research"]["points_milli"] = 90_000
+    civ["research"]["points_milli"] = 170_000
     engine.tick(CONFIG, state)
     assert "writing" not in civ["techs"]
-    assert civ["research"]["points_milli"] == 90_000
+    assert civ["research"]["points_milli"] == 170_000
 
 
 def test_points_with_no_tech_are_lost_until_the_tree_is_done(start):

@@ -73,7 +73,7 @@ Base output per worker per tick, before multipliers:
 ### 4.1 Population
 - Each population unit is one worker. Unassigned workers idle, produce nothing and still eat.
 - Housing: each housing building holds 10. A settlement can't grow past its housing.
-- **Growth:** a settlement grows by 15 per mille (Verdance 20) of its population each tick when all three hold: nobody was unfed this tick; the civ's food production over the last 4 ticks was at least its consumption over those ticks; and the settlement has free housing. A civ living off its reserves does not grow.
+- **Growth:** a settlement grows by 15 per mille (Verdance 20) of its population each tick when all three hold: nobody was unfed this tick; the civ's food production over the last 4 ticks was at least its consumption over those ticks; and the settlement has free housing. The second can also be met by a food stock that holds at least 40 ticks of eating (population × 1, not unit upkeep), read after eating and before spoilage. A civ living off a thin reserve does not grow; one living off a deep store, or off imports, does.
 - **Starvation:** unfed people = food needed − food available. Each tick, deaths = unfed ÷ 4, rounded up. The stability cost is in section 5.
 - People serving in units eat through unit upkeep (section 6), not the 1 food a head.
 
@@ -102,10 +102,10 @@ Starting stocks are set so that a civ which never trades runs out of its critica
 
 | Civ | Food | Timber | Stone | Metal | Critical buffer |
 |---|---|---|---|---|---|
-| Ironhold | 2,000 | 250 | 300 | 200 | food |
+| Ironhold | 1,500 | 250 | 300 | 200 | food |
 | Verdance | 400 | 300 | 200 | 110 | metal |
-| Saltreach | 400 | 550 | 250 | 150 | timber |
-| Dunerunners | 2,000 | 800 | 250 | 200 | food and timber |
+| Saltreach | 400 | 600 | 250 | 150 | timber |
+| Dunerunners | 2,000 | 650 | 250 | 200 | food and timber |
 | Frostmark | 400 | 300 | 220 | 150 | stone |
 
 **Starting settlements:**
@@ -253,11 +253,11 @@ Test: the scripted non-trading bot runs out between tick 60 and 80 and loses at 
 
 | Era | Points | Resources |
 |---|---|---|
-| 1 | 80 | 20 timber |
-| 2 | 240 | 40 timber, 20 stone, 10 metal |
-| 3 | 600 | 60 stone, 30 metal, 10 luxury |
+| 1 | 160 | 20 timber |
+| 2 | 480 | 40 timber, 20 stone, 10 metal |
+| 3 | 1,200 | 60 stone, 30 metal, 10 luxury |
 
-  The tree totals 4,040 points. A full-focus civ (the scripted bot builds a library within 5 ticks of Writing) has 4 points a tick until about tick 20, then about 13. That finishes the tree around tick 330 (*tuned* by a scripted-bot test). "Finished" means every tech whose gate the civ can meet; a civ with no coast never gets Harbours.
+  The tree totals 8,080 points (*tuned* in M6, doubled from 4,040). The first estimate (4 points a tick, then about 13 after a library) assumed a civ that stays small; a supplied builder grows faster, and at 4,040 points finished the tree by tick 200 to 250. At 8,080 a supplied builder finishes between tick 311 and 384 (section 21). "Finished" means every tech whose gate the civ can meet; a civ with no coast never gets Harbours.
 - **Catch-up:** a tech already held by any civ this civ has contacted costs 25% fewer points.
 - **Capture:** occupying a settlement with a library or printing house gives the captor one tech it lacks and whose prerequisites it meets, chosen by the combat stream.
 - **After the tree:** scholars produce 1 prestige per research point.
@@ -423,4 +423,10 @@ Where the rules above leave a choice open, the engine does this (approved 2026-1
 - **Ruins (changes 4.6, approved 2026-11-11):** farms, pastures, lumber camps and mines never become ruins. While their upkeep is unpaid they run at half output, for as long as it stays unpaid. Every other building still becomes a ruin after 8 ticks unpaid. Without this, a civ whose timber or stone ran out lost every building in the same tick and died out, instead of declining to what its land supports (4.7).
 - **Builder bot:** a civ short of food researches Crop rotation before Writing; every other civ researches Writing first.
 - **Run-out tuning (M6, approved 2026-11-11):** the starting stocks in 4.7 are the measured ones, and winter fuel is 2 per 10. The sums under "Working the sums" are the original estimates; the builder bot grows faster than they assumed, so the stocks are set from runs instead. Measured on seeds 1 to 3, events off: Ironhold food runs out at 54 to 79, Dunerunners food at 54 to 84, Saltreach timber at 55 to 67, Frostmark stone at 63, Verdance metal at 83 to 87. Dunerunners timber at 800 runs out at 55 to 95 (63 on seed 1; 300 ran out at 23).
-- **Builder bot, M6:** it also puts a mine on a free metal node when metal is falling, and builds no new housing while timber is falling.
+- **Builder bot, M6:** it also puts a mine on a free metal node when metal is falling, and builds no new housing while timber is falling and the stock is under 100.
+- **Tree pace and growth (M6 part 2, approved 2026-11-11):**
+  - In isolation every civ's timber nets to about zero by tick 40 (seed 1, ticks 40 to 200: Ironhold makes 7.7 a tick, burns 3.9 and pays 3.7 of upkeep arrears). The library and workshop then become ruins and research stops, so an isolated civ can't finish the tree. Tree pace and town growth are measured in a supplied world instead (ADR 0004).
+  - Era points doubled to 160, 480 and 1,200 (section 14).
+  - Growth may also run on a food stock of 40 ticks of eating (4.1). Without it Ironhold and Dunerunners never grow, since their farms never cover what they eat, so a food-short civ that imports food could never grow either. At 8 ticks they grew on their starting food and ran out at 38 to 48.
+  - Starting stocks retuned (4.7): Ironhold food 1,500, Dunerunners timber 650, Saltreach timber 600. Seed 1, events off: Dunerunners food runs out at 61 and timber at 79, Frostmark stone at 67, Ironhold food at 79, Saltreach timber at 63, Verdance metal at 71; every civ declines by tick 100.
+  - The builder puts a new farm in the settlement with the most people beyond its farm, mine and lumber camp slots, not in its chosen town first (docs/debug-log.md).

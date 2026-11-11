@@ -121,6 +121,30 @@ def test_no_growth_before_a_full_four_tick_food_window(start):
     assert births(state) > 0
 
 
+def test_a_civ_short_of_food_grows_only_on_a_deep_store(start):
+    # Ironhold's farms never cover its eating, so only the stored-food clause can let it grow (rules 4.1).
+    state = _fresh(start)
+    engine.run(QUIET, state, 4)
+    civ, capital = state["civs"]["ironhold"], state["settlements"]["ironhold-0"]
+    window = civ["food_window"]
+    assert sum(p for p, _ in window) < sum(c for _, c in window)
+
+    def store(ticks_of_eating):
+        target = ticks_of_eating * engine.civ_pop(state, "ironhold") * QUIET.food_per_person
+        ledger.apply(civ["stocks"], state["ledger"], None, "ironhold", "food", target - civ["stocks"]["food"],
+                     ledger.Rule.PRODUCTION, state["tick"])
+
+    store(QUIET.growth_store_ticks // 2)
+    before = capital["growth_acc"]
+    engine.tick(QUIET, state)
+    assert capital["growth_acc"] == before  # half the store the rule asks for: no growth
+
+    store(QUIET.growth_store_ticks * 2)
+    engine.tick(QUIET, state)
+    assert capital["growth_acc"] != before
+    _assert_conserved(state)
+
+
 def test_starving_civ_loses_a_quarter_of_its_unfed_rounded_up(start):
     state = _fresh(start)
     civ = state["civs"]["ironhold"]

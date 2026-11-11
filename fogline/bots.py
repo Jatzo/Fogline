@@ -24,6 +24,8 @@ FOOD_SHORT_FIRST = ("crop_rotation", "writing")  # a civ short of food needs its
 TREE_ORDER = list(techs.TECHS)
 BLOCK_TICKS = 8  # after a rejected build, leave that building in that settlement alone this long
 BALANCE_TICKS = 4
+HOUSING_TIMBER = 100  # housing pauses while timber falls only once the stock is under this
+FIELD_WORK = ("farm", "mine", "lumber_camp")  # buildings whose slots count as jobs when placing a farm
 
 
 def spiral_point(leg: int) -> str:
@@ -151,12 +153,16 @@ def make_builder(config: Config, food_short: bool = False) -> Decider:
             want(capital["id"], "library")
         if "writing" in held and count(capital, "library") and not count(town, "library"):
             want(town["id"], "library")
-        if balance(2) >= 0:  # no new homes while fuel is already running down
+        if balance(2) >= 0 or stocks["timber"] >= HOUSING_TIMBER:  # no new homes while fuel runs down and is low
             for settlement in outposts + [capital]:  # housing first, outposts before the capital
                 if settlement["pop"] >= count(settlement, "housing") * config.housing_capacity - 2:
                     want(settlement["id"], "housing")
-        if balance(1) < 0:
-            for settlement in [town, capital] + [s for s in outposts if s is not town]:
+        if balance(1) < 0:  # a new farm goes where the most people have no work slot
+            def spare_hands(settlement: dict) -> int:
+                return settlement["pop"] - sum(config.slots[b] for b in FIELD_WORK for _ in range(count(settlement, b)))
+            # shortcut: stops at the first free settlement even if its farm is blocked; trying the next one
+            # instead shifts the tuned run-outs (docs/debug-log.md).
+            for settlement in sorted(settlements, key=lambda s: (-spare_hands(s), s["id"])):
                 if settlement["id"] not in busy:
                     want(settlement["id"], "farm")
                     break

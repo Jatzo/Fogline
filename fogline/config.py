@@ -38,13 +38,13 @@ class CivSpec:
 def _civs() -> tuple[CivSpec, ...]:
     return (
         CivSpec("ironhold", "Ironhold", "mountains", ("stone", "metal"), ("food",), "gemstones",
-                400, 450, 600, {"food": 2000, "timber": 250, "stone": 300, "metal": 200, "luxury": 0}),
+                400, 450, 600, {"food": 1500, "timber": 250, "stone": 300, "metal": 200, "luxury": 0}),
         CivSpec("verdance", "Verdance", "forest", ("food", "timber"), ("metal",), "dye",
                 800, 150, 200, {"food": 400, "timber": 300, "stone": 200, "metal": 110, "luxury": 0}),
         CivSpec("saltreach", "Saltreach", "coast", ("food", "stone"), ("timber",), "pearls",
-                500, 400, 250, {"food": 400, "timber": 550, "stone": 250, "metal": 150, "luxury": 0}),
+                500, 400, 250, {"food": 400, "timber": 600, "stone": 250, "metal": 150, "luxury": 0}),
         CivSpec("dunerunners", "Dunerunners", "desert", ("metal", "stone"), ("food", "timber"), "spice",
-                250, 800, 400, {"food": 2000, "timber": 800, "stone": 250, "metal": 200, "luxury": 0}),
+                250, 800, 400, {"food": 2000, "timber": 650, "stone": 250, "metal": 200, "luxury": 0}),
         CivSpec("frostmark", "Frostmark", "tundra", ("timber", "metal"), ("stone",), "amber",
                 450, 350, 800, {"food": 400, "timber": 300, "stone": 220, "metal": 150, "luxury": 0}),
     )
@@ -116,6 +116,7 @@ class Config:
     culture_growth_rate: dict[str, int] = field(default_factory=lambda: {"verdance": 20})
     starvation_divisor: int = 4
     food_window_ticks: int = 4
+    growth_store_ticks: int = 40  # a food stock this many ticks of eating deep also lets a civ grow
     food_per_person: int = 1
     spoilage: int = 5
     spoilage_granary: int = 2
@@ -179,7 +180,7 @@ class Config:
 
     # Tech (rules 14)
     tech_speed: int = 1000
-    era_points: dict[str, int] = field(default_factory=lambda: {"1": 80, "2": 240, "3": 600})
+    era_points: dict[str, int] = field(default_factory=lambda: {"1": 160, "2": 480, "3": 1200})
     library_scholar_rate: int = 1500
     printing_rate: int = 1500
     catch_up_discount: int = 250

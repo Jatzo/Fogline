@@ -323,7 +323,8 @@ def _consumption(config: Config, state: dict, now: int, log: Log, scratch: dict)
         civ["food_window"] = window[-config.food_window_ticks:]
         surplus = (len(civ["food_window"]) == config.food_window_ticks
                    and sum(p for p, _ in civ["food_window"]) >= sum(c for _, c in civ["food_window"]))
-        if unfed == 0 and surplus:
+        stored = stocks["food"] >= config.growth_store_ticks * need  # imports can feed growth (rules 4.1)
+        if unfed == 0 and (surplus or stored):
             _grow(config, state, log, civ_id)
 
         granary = _has_building(state["settlements"][f"{civ_id}-0"], "granary")
