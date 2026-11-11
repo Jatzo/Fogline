@@ -3,8 +3,8 @@
 Update this at the end of every Claude Code session.
 
 ## Phases
-- [ ] 1. Rules spec, then engine (with tile viewer showing settlements grow)
-- [ ] 2. Agent interface
+- [x] 1. Rules spec, then engine (with tile viewer showing settlements grow)
+- [x] 2. Agent interface
 - [ ] 3. Contact (3a messaging, trade, caravans, diffusion; 3b two LLM civs, close together)
 - [ ] 4. Five civs, natural contact
 - [ ] 5. Conflict and the record (5a treaties/raids, 5b Chronicler/replay)
@@ -102,5 +102,15 @@ Milestones: M8 observation and sea border, M9 schemas and the frontier rule, M10
 
 - [x] M14 the civ inspector: `/api/runs/{name}/turns?civ=&tick=` (the run found through the listing; civ and tick only compared with records) returns a civ's latest turn and reflection at or before a tick, with the stored output; the viewer's "Ruler's turn" panel follows the time-lapse when paused and shows why the civ woke, the outcome, orders, rejections, journal, strategy, the raw reply and the full observation, all through textContent. Checked in the browser on a 200-tick mock run. 249 tests.
 
+## Phase 2 review (2026-11-11)
+Two reviews: fog and prompts; adapter, replay, scheduler and memory. No determinism or replay break found. Fixed:
+- A ruler's rejected `kind` is cut to 40 characters; a 19,000-character one had made the next observation 20,921 characters against a 12,000 cap. Rejections are the last thing trimmed.
+- The sea border is 6 tiles (map 76): a stone fortress sees 4, and a move order reaches 2 past known ground. A test ties the border to every sight radius.
+- A live run stops after 3 ticks in a row where every call errored, or 5 of timeouts.
+- Each live output keeps whitelisted token counts and cost; the summary totals them per civ.
+- Verdance's culture lost "strike first", "by force" and "neighbour"; the leak check now looks for those words, enemy and invade.
+
+Deferred: replay doesn't check that every stored row was used or that the manifest matches; fenced JSON from Haiku is refused (kept strict; watch the first live run); the event token mapper misses an id with punctuation attached; a trigger naming an unmet civ keeps its name with the detail blanked (matters once Phase 3 adds pre-contact triggers); outputs.jsonl lines are in finish order.
+
 ## Next session
-Phase 2 end-of-phase code review, then Phase 3 in plan mode. Before each live experiment, check a tiny call's input tokens again (ADR 0007). To watch the mock run: `python -m fogline.viewer --runs runs`, pick p2-mock.
+Phase 3 in plan mode. Before each live experiment, check a tiny call's input tokens again (ADR 0007). To watch the mock run: `python -m fogline.viewer --runs runs`, pick p2-mock.

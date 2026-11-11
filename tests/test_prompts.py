@@ -20,7 +20,8 @@ TICKS = 200
 # Words that would tell a ruler it isn't alone. The size numbers are checked in the system prompt
 # only: in a report they would match ordinary stock counts.
 HINTS = re.compile(r"\bcivs?\b|civili[sz]ation|\brivals?\b|\boutsiders?\b|foreign|\bstrangers?\b|"
-                   r"\bmet\b|other (?:peoples?|nations?|realms?|rulers?)", re.IGNORECASE)
+                   r"\bmet\b|other (?:peoples?|nations?|realms?|rulers?)|\bneighbours?\b|\benem(?:y|ies)\b|"
+                   r"\binvad\w*|\bby force\b|\bstrike first\b", re.IGNORECASE)
 SIZE = re.compile(r"\bmap\b|\b76\b|\b64\b", re.IGNORECASE)
 
 
