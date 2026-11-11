@@ -135,7 +135,7 @@ def test_a_snapshot_round_trips_to_the_same_hash(tmp_path):
 # The state hash of seed 1 after 200 ticks with builder bots and events on. Any change to the
 # rules, the numbers, the bots or the set of config fields (the config hash lives in the state)
 # changes it; the commit that does so says why.
-GOLDEN_SEED_1_TICK_200 = "0d4f64707be0476ab9c8f6a8a9ce77133bcd192a0fa8493a8c9270f461e827d2"
+GOLDEN_SEED_1_TICK_200 = "75c740cf668507d2b073a666e51f6064cb0bcf5478c058530d8cb5ba8aeb7377"
 
 
 def test_seed_1_at_tick_200_matches_the_golden_hash():

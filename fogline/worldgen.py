@@ -147,7 +147,8 @@ def _build(config: Config, seed: int, attempt: int) -> dict:
         "worldgen_attempt": attempt,
         "tick": 0,
         "config_hash": config.config_hash(),
-        "map": {"size": size, "biome": ["".join(row) for row in biome], "river": ["".join(row) for row in river]},
+        "map": {"size": size, "biome": ["".join(row) for row in biome], "river": ["".join(row) for row in river],
+                "passes": {}, "tracks": []},
         "civs": {},
         "settlements": {},
         "nodes": {},
@@ -158,6 +159,9 @@ def _build(config: Config, seed: int, attempt: int) -> dict:
         "units": {},
         "reputation": reputation.initial(config, civ_ids),
         "couriers": [],
+        "offers": {},
+        "next_offer": 0,
+        "prices": {},
     }
 
     for civ in civ_ids:

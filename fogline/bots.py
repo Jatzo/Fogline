@@ -189,3 +189,46 @@ def make_builder(config: Config, food_short: bool = False) -> Decider:
                 "memory": memory}
 
     return decide
+
+
+def make_trader(config: Config, civ_id: str) -> Decider:
+    """The builder, plus trade once it has met someone (Phase 3): it trains a caravan, offers 100
+    of what it is rich in for the fair amount of what it lacks, and accepts any offer within 25% of
+    base value. It reads only its observation; base values are the published rules (rules 8)."""
+    spec = config.civ(civ_id)
+    builder = make_builder(config, "food" in spec.short_of)
+    me = spec.name
+    worth = config.base_value
+
+    def fair(gets: dict, gives: dict) -> bool:
+        received = sum(worth.get(g, 0) * n for g, n in gets.items())
+        paid = sum(worth.get(g, 0) * n for g, n in gives.items())
+        return paid > 0 and abs(received - paid) * 1000 <= config.fair_trade_margin * max(received, paid)
+
+    def decide(brief: dict, scratch: dict) -> Reply:
+        reply = dict(builder(brief, scratch))
+        met = brief.get("met")
+        if not met:
+            return reply
+        orders = list(reply.get("actions", []))
+        mine = [o for o in brief["offers"] if o["from"] == me]
+        for offer in brief["offers"]:
+            if offer["to"] == me and offer["status"] == "open":
+                accept = fair(offer["give"], offer["get"])
+                orders.append({"kind": "respond_trade", "offer": offer["id"], "accept": accept})
+        caravans = [u for u in brief["units"] if u["kind"] == "caravan"]
+        stocks = brief["stocks"]
+        if not caravans:
+            capital = brief["settlements"][0]["id"]
+            orders.append({"kind": "train_unit", "settlement": capital, "unit_kind": "caravan"})
+        elif not mine:
+            have, want = spec.rich_in[0], spec.short_of[0]
+            if stocks[have] >= 300:
+                amount = max(1, 100 * worth[have] // worth[want])
+                orders.append({"kind": "offer_trade", "to": met[0]["name"], "give": {have: 100},
+                                  "get": {want: amount}, "expires_in": 4})
+        # Appended, never inserted: the builder reads its rejections by index into its own orders.
+        reply["actions"] = orders[:config.max_actions_per_turn]
+        return reply
+
+    return decide

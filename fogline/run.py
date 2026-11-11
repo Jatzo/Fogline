@@ -17,7 +17,8 @@ from fogline.config import Config
 from fogline.state import state_hash
 
 BOTS = {"builder": lambda config, civ_id: bots.make_builder(config, "food" in config.civ(civ_id).short_of),
-        "spiral": lambda config, civ_id: bots.spiral_scout, "idle": lambda config, civ_id: bots.idle}
+        "spiral": lambda config, civ_id: bots.spiral_scout, "idle": lambda config, civ_id: bots.idle,
+        "trader": lambda config, civ_id: bots.make_trader(config, civ_id)}
 
 
 def deciders_for(config: Config, state: dict, bot: str = "builder") -> dict:

@@ -58,7 +58,7 @@ def spawn(config: Config, state: dict, civ_id: str, kind: str, settlement_id: st
             ledger.apply(civ["stocks"], state["ledger"], log, civ_id, resource, -amount, ledger.Rule.TRAIN_COST, now)
     unit = {"civ": civ_id, "kind": kind, "home": settlement_id, "tile": at or settlement["tile"], "pop": 0,
             "ready_tick": now if ready_now else now + spec["train_ticks"], "path": [], "target": "",
-            "idle_since": now if ready_now else -1}
+            "idle_since": now if ready_now else -1, "reserved": "", "cargo": {}, "leg": {}}
     state["units"][unit_id] = unit
     ledger.apply(settlement, state["ledger"], log, settlement_id, "pop", -spec["pop"], ledger.Rule.TRAINED, now)
     ledger.apply(unit, state["ledger"], log, unit_id, "pop", spec["pop"], ledger.Rule.TRAINED, now)
@@ -134,6 +134,15 @@ def order(state: dict, unit_id: str, target: str, path: list[str]) -> None:
     unit["idle_since"] = -1 if path else state["tick"]
 
 
+def _wear(config: Config, world_map: dict, tile: str) -> None:
+    """A caravan crossing a tile wears it; after track_passes crossings it is a track (rules 15.5,
+    counted per tile in v1)."""
+    passes = world_map["passes"]
+    passes[tile] = passes.get(tile, 0) + 1
+    if passes[tile] == config.track_passes:
+        world_map["tracks"] = sorted(world_map["tracks"] + [tile])
+
+
 def move_all(config: Config, state: dict, now: int) -> None:
     """Step 4 movement, in unit id order. Points left over at the end of a tick are lost."""
     world_map = state["map"]
@@ -157,6 +166,8 @@ def move_all(config: Config, state: dict, now: int) -> None:
                 break
             points -= step
             unit["tile"] = unit["path"].pop(0)
+            if unit["leg"]:
+                _wear(config, world_map, unit["tile"])
         if not unit["path"] and unit["idle_since"] != now:
             unit["target"] = ""
             unit["idle_since"] = now
@@ -189,6 +200,8 @@ def pay_upkeep(config: Config, state: dict, civ_id: str, log: Log) -> int:
             food = spec["upkeep"]
         due += food
         if stocks["food"] < food:
+            if state["units"][unit_id]["reserved"]:
+                continue  # a caravan on a trade goes unfed rather than abandon goods on the road
             discharge(state, unit_id, log, reason="unit_starved")
             continue
         ledger.apply(stocks, state["ledger"], log, civ_id, "food", -food, ledger.Rule.UNIT_UPKEEP, now)

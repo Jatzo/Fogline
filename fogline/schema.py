@@ -107,6 +107,9 @@ def _arg_schema(arg: Arg, met: Sequence[str]) -> dict:
         return {"type": "string", "enum": sorted(met), "description": "a people you have met, by name"}
     if arg.kind == "bool":
         return {"type": "boolean"}
+    if arg.kind == "goods":
+        return {"type": "object", "maxProperties": 6, "description": "goods by name: food, timber, stone, metal, "
+                "luxury, or blueprint:<tech> (1, a tech you hold)", "additionalProperties": {"type": "integer", "minimum": 1}}
     if arg.kind == "str":
         return {"type": "string", "maxLength": arg.max_len}
     if arg.kind == "tile":
@@ -114,7 +117,9 @@ def _arg_schema(arg: Arg, met: Sequence[str]) -> dict:
     if arg.kind == "int":
         return {"type": "integer", "minimum": arg.low, "maximum": arg.high}
     if arg.kind == "enum":
-        return {"type": "string", "enum": list(arg.choices)}
+        from fogline.actions import CONTACT_UNITS
+        choices = [c for c in arg.choices if met or c not in CONTACT_UNITS]
+        return {"type": "string", "enum": choices}
     if arg.kind == "alloc":
         return {"type": "object", "additionalProperties": False,
                 "properties": {line: {"type": "integer", "minimum": 0, "maximum": 100} for line in rules.LINES},

@@ -56,6 +56,7 @@ EVENT_TRIGGERS: Mapping[str, Trigger] = {
     "built": Trigger.BUILD_DONE, "tech": Trigger.TECH_UNLOCKED, "contact": Trigger.CONTACT,
     "sighted": Trigger.FOREIGN_UNIT_SIGHTED, "arrived": Trigger.UNIT_ARRIVED, "idle": Trigger.UNIT_IDLE,
     "below": Trigger.STOCK_BELOW_THRESHOLD, "message": Trigger.MESSAGE_RECEIVED,
+    "offer": Trigger.OFFER_RECEIVED, "offer_expiring": Trigger.OFFER_EXPIRING,
 }
 
 

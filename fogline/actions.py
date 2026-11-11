@@ -10,11 +10,12 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 
-from fogline import construction, memory, messages, rules, sight, techs, units
+from fogline import construction, memory, messages, rules, sight, techs, trade, units
 from fogline.config import Config
 from fogline.state import parse_tile_key, tile_key
 
 Log = list[dict] | None
+CONTACT_UNITS = frozenset({"caravan"})  # only make sense with someone to trade with
 
 
 class Reason(StrEnum):
@@ -53,6 +54,11 @@ class Reason(StrEnum):
     BAD_NOTE = "bad_note"
     TOO_MANY_MESSAGES = "too_many_messages"
     EMPTY_MESSAGE = "empty_message"
+    UNIT_BUSY = "unit_busy"  # a caravan reserved for a trade
+    BAD_GOODS = "bad_goods"
+    NOT_ENOUGH_GOODS = "not_enough_goods"
+    NO_CARAVAN = "no_caravan"
+    UNKNOWN_OFFER = "unknown_offer"
 
 
 # ------------------------------------------------------------------ handlers
@@ -137,6 +143,8 @@ def train_unit(config: Config, state: dict, civ_id: str, settlement: str, unit_k
     if home is None or home["civ"] != civ_id:
         return Reason.NOT_OWN_SETTLEMENT
     spec = config.units.get(unit_kind)
+    if unit_kind in CONTACT_UNITS and not civ["met"]:
+        spec = None  # before contact a caravan answers like a made-up unit
     if spec is None:
         return Reason.UNKNOWN_UNIT_KIND
     if spec["tech"] and spec["tech"] not in civ["techs"]:
@@ -166,6 +174,8 @@ def move_unit(config: Config, state: dict, civ_id: str, unit: str, to: str, log:
     if problem:
         return problem
     record = state["units"][unit]
+    if record["reserved"]:
+        return Reason.UNIT_BUSY
     if not units.is_ready(state, record):
         return Reason.IN_TRAINING
     if not sight.near_known(state, civ_id, to, config.order_margin):
@@ -186,6 +196,8 @@ def disband_unit(config: Config, state: dict, civ_id: str, unit: str, log: Log =
     if problem:
         return problem
     record = state["units"][unit]
+    if record["reserved"]:
+        return Reason.UNIT_BUSY
     owner = state["territory"].get(record["tile"])
     at_home = record["tile"] == state["settlements"][record["home"]]["tile"]
     if not at_home and (owner is None or state["settlements"][owner]["civ"] != civ_id):
@@ -245,6 +257,52 @@ def send_message(config: Config, state: dict, civ_id: str, to: str, text: str, l
     return None
 
 
+def _goods_problem(config: Config, goods: object, need_some: bool) -> Reason | None:
+    if not isinstance(goods, dict) or len(goods) > config.max_offer_goods or (need_some and not goods):
+        return Reason.BAD_GOODS
+    for good, amount in goods.items():
+        if not isinstance(good, str) or not trade.is_good(good) or not isinstance(amount, int)                 or isinstance(amount, bool) or amount < 1 or (good.startswith(trade.BLUEPRINT) and amount != 1):
+            return Reason.BAD_GOODS
+    return None
+
+
+def offer_trade(config: Config, state: dict, civ_id: str, to: str, give: dict, get: dict, expires_in: int,
+                log: Log = None) -> Reason | None:
+    """Offer goods to a met civ (rules 8). The goods leave the stockpile into escrow at once and
+    the caravans to carry them are reserved. An empty get is aid."""
+    receiver = met_civ(config, state, civ_id, to)
+    if receiver is None:
+        return Reason.UNKNOWN_CIV
+    problem = _goods_problem(config, give, need_some=True) or _goods_problem(config, get, need_some=False)
+    if problem:
+        return problem
+    if not trade.can_hold(state, civ_id, give):
+        return Reason.NOT_ENOUGH_GOODS
+    if len(trade.free_caravans(state, civ_id)) < trade.caravans_needed(config, state, civ_id, give):
+        return Reason.NO_CARAVAN
+    if not trade.joined(config, state, civ_id, receiver):
+        return Reason.UNREACHABLE
+    trade.offer(config, state, civ_id, receiver, give, get, expires_in, log)
+    return None
+
+
+def respond_trade(config: Config, state: dict, civ_id: str, offer: str, accept: bool, log: Log = None) -> Reason | None:
+    """Accept or refuse an open offer made to this civ. Accepting escrows this civ's side and
+    reserves its caravans."""
+    record = state["offers"].get(offer)
+    if record is None or record["to"] != civ_id or record["status"] != trade.OPEN:
+        return Reason.UNKNOWN_OFFER
+    if not accept:
+        trade.reject(state, record, log)
+        return None
+    if not trade.can_hold(state, civ_id, record["get"]):
+        return Reason.NOT_ENOUGH_GOODS
+    if len(trade.free_caravans(state, civ_id)) < trade.caravans_needed(config, state, civ_id, record["get"]):
+        return Reason.NO_CARAVAN
+    trade.accept(config, state, record, log)
+    return None
+
+
 # ------------------------------------------------------------------ the table and the boundary
 
 
@@ -292,6 +350,10 @@ def action_table(config: Config) -> Mapping[str, ActionSpec]:
         "set_note": ActionSpec(set_note, {"text": Arg("str", max_len=config.journal_chars),
                                           "about": Arg("civ", required=False, contact=True),
                                           "quote": Arg("bool", required=False, contact=True)}),
+        "offer_trade": ActionSpec(offer_trade, {"to": Arg("civ"), "give": Arg("goods"), "get": Arg("goods"),
+                                                "expires_in": Arg("int", low=1, high=config.max_offer_ticks)},
+                                   contact=True),
+        "respond_trade": ActionSpec(respond_trade, {"offer": Arg("str"), "accept": Arg("bool")}, contact=True),
         "send_message": ActionSpec(send_message, {"to": Arg("civ"), "text": Arg("str", max_len=config.message_raw_chars)},
                                    contact=True),
     }
@@ -316,6 +378,9 @@ def _check_arg(arg: Arg, value: object) -> Reason | None:
     elif arg.kind == "civ":
         if not isinstance(value, str) or len(value) > arg.max_len:
             return Reason.BAD_ARGS
+    elif arg.kind == "goods":
+        if not isinstance(value, dict):
+            return Reason.BAD_GOODS
     elif arg.kind in ("str", "tile"):
         if not isinstance(value, str) or len(value) > arg.max_len:
             return Reason.BAD_ARGS

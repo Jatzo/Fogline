@@ -10,7 +10,7 @@ import re
 from collections.abc import Mapping
 from typing import Any
 
-from fogline import memory, reputation, rules, sight, techs, units
+from fogline import memory, reputation, rules, sight, techs, trade, units
 from fogline.config import Config
 from fogline.intmath import PER_MILLE, floor_div
 from fogline.state import canonical_json, parse_tile_key, tile_key
@@ -50,6 +50,10 @@ FIELDS: Mapping[str, Any] = {
     "events": [_EVENT],
     "journal": [{"tick": int, "text": str, "source": str, "about": str}],
     "messages": [{"from": str, "sent": int, "hearsay": bool, "text": str}],
+    "offers": [{"id": str, "from": str, "to": str, "give": {str: int}, "get": {str: int}, "expires": int,
+                "status": str}],
+    "dossiers": [{"name": str, "met_tick": int, "standing": str, "offers_made": int, "offers_received": int,
+                  "deliveries": int, "messages": int, "notes": [str]}],
     "strategy": str,
     "elided": [str],
 }
@@ -59,7 +63,8 @@ _PUNCTUATION = "()[]{}<>.,;:!?'\"`"
 
 # Shown only once the civ has met someone. Before that even an empty list, or a key named
 # foreign_sites, would tell a ruler that other peoples exist.
-AFTER_CONTACT = frozenset({"in_view", "foreign_sites", "met", "messages"})
+AFTER_CONTACT = frozenset({"in_view", "foreign_sites", "met", "messages", "offers", "dossiers"})
+DOSSIER_NOTES = 3
 
 
 class ObservationError(ValueError):
@@ -146,6 +151,23 @@ def _events(config: Config, state: dict, civ_id: str) -> list[dict]:
     return seen
 
 
+def _dossier(config: Config, state: dict, civ_id: str, other: str) -> dict:
+    """What this civ has itself seen of another (rules 21, Phase 3): engine facts plus the
+    ruler's own latest notes about it. It doesn't score claims against the truth in v1."""
+    offers = list(state["offers"].values())
+    return {
+        "name": civ_name(config, other),
+        "met_tick": state["civs"][civ_id]["met"][other],
+        "standing": reputation.word(state["reputation"][civ_id][other]),
+        "offers_made": sum(1 for o in offers if o["from"] == civ_id and o["to"] == other),
+        "offers_received": sum(1 for o in offers if o["from"] == other and o["to"] == civ_id),
+        "deliveries": sum(1 for e in state["events"] if e["kind"] == "delivered" and e["civ"] == civ_id
+                          and e["detail"].split(" ")[0] == other),
+        "messages": sum(1 for e in state["events"] if e["kind"] == "message" and e["civ"] == civ_id and e["detail"] == other),
+        "notes": [e["text"] for e in memory.view(state, civ_id)[0] if e["about"] == other][-DOSSIER_NOTES:],
+    }
+
+
 def observe(config: Config, state: dict, civ_id: str, raised: list[dict] | None = None) -> dict:
     """What civ_id may see now. Pure: tests, the turn step and the inspector all call it."""
     civ = state["civs"][civ_id]
@@ -206,6 +228,10 @@ def observe(config: Config, state: dict, civ_id: str, raised: list[dict] | None 
         "journal": [{**e, "about": civ_name(config, e["about"]) if e["about"] else ""} for e in journal],
         "messages": [{"from": civ_name(config, m["from"]), "sent": m["sent"], "hearsay": m["hearsay"], "text": m["text"]}
                      for m in civ["inbox"]],
+        "offers": [{"id": o["id"], "from": civ_name(config, o["from"]), "to": civ_name(config, o["to"]),
+                    "give": dict(o["give"]), "get": dict(o["get"]), "expires": o["expires"], "status": o["status"]}
+                   for _, o in sorted(state["offers"].items()) if civ_id in (o["from"], o["to"]) and o["status"] in trade.LIVE],
+        "dossiers": [_dossier(config, state, civ_id, other) for other in sorted(met)],
         "strategy": strategy,
         "elided": [],
     }

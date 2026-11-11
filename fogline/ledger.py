@@ -38,6 +38,11 @@ class Rule(StrEnum):
     DISBANDED = "disbanded"  # people returning from a unit
     DISCOVERY = "discovery"  # Providence mineral discovery creates a node
     SUPPLY = "supply"  # test-only top-up standing in for trade (ADR 0004)
+    ESCROW = "escrow"  # goods offered in trade, held by the offer
+    ESCROW_RETURN = "escrow_return"  # an expired or rejected offer gives them back
+    LOADED = "loaded"  # from the offer onto its caravans
+    TRADE_DELIVERY = "trade_delivery"
+    MARKET_FEE = "market_fee"  # destroyed on delivery (rules 8)
 
 
 class LedgerError(ValueError):

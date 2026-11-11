@@ -33,6 +33,8 @@ def enter_cost(config: Config, world_map: dict, x: int, y: int, roads: frozenset
     cost = config.move_cost[biome]
     if is_river(world_map, x, y):
         cost += config.river_crossing_cost
+    if f"{x},{y}" in world_map.get("tracks", ()):  # worn by caravans (rules 15.5)
+        cost = max(1, cost - 1)
     return cost
 
 

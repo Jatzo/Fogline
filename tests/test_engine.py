@@ -6,7 +6,7 @@ import dataclasses
 import pytest
 
 from fogline import engine, ledger, units, worldgen
-from fogline.config import Config
+from fogline.config import RESOURCES, Config
 from fogline.state import state_hash
 
 CONFIG = Config()
@@ -33,11 +33,21 @@ def _assert_conserved(state):
         assert ledger.net_change(totals, node_id, "node") == node["node"], node_id
     for unit_id, unit in state["units"].items():
         assert ledger.net_change(totals, unit_id, "pop") == unit["pop"], unit_id
-    # An owner that no longer exists (a disbanded unit) must hold nothing.
-    live = set(state["civs"]) | set(state["settlements"]) | set(state["nodes"]) | set(state["units"])
+        for resource in RESOURCES:  # goods in transit on a caravan
+            assert ledger.net_change(totals, unit_id, resource) == unit.get("cargo", {}).get(resource, 0), (unit_id, resource)
+    escrow = {}
+    for offer in state.get("offers", {}).values():  # goods held by an offer
+        for side in ("give", "get"):
+            escrow[f"offer-{offer['id']}-{side}"] = offer["escrow"][side]
+    for owner, held in escrow.items():
+        for stock in ledger.STOCKS:
+            assert ledger.net_change(totals, owner, stock) == held.get(stock, 0), (owner, stock)
+    # An owner that no longer exists (a disbanded unit) must hold nothing of anything.
+    live = set(state["civs"]) | set(state["settlements"]) | set(state["nodes"]) | set(state["units"]) | set(escrow)
     gone = {key.split(":")[0] for key in totals} - live
     for owner in gone:
-        assert ledger.net_change(totals, owner, "pop") == 0, owner
+        for stock in ledger.STOCKS:
+            assert ledger.net_change(totals, owner, stock) == 0, (owner, stock)
 
 
 @pytest.mark.parametrize("seed", [1, 2, 3])

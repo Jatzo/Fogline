@@ -171,6 +171,8 @@ class Config:
                  "strength": 2, "tech": "", "building": "", "train_ticks": 1, "army": True},
         "soldiers": {"cost": {"food": 20, "metal": 10, "timber": 5}, "pop": 5, "upkeep": 2, "move": 4, "sight": 2,
                      "strength": 5, "tech": "drill", "building": "barracks", "train_ticks": 2, "army": True},
+        "caravan": {"cost": {"timber": 20, "food": 10}, "pop": 2, "upkeep": 1, "move": 4, "sight": 2,
+                    "strength": 0, "tech": "", "building": "", "train_ticks": 1, "army": False},
     })
     scout_move_pathfinding: int = 6
     scout_sight_pathfinding: int = 3
@@ -252,6 +254,19 @@ class Config:
     courier_pace: int = 8  # movement points a tick
     inbox_size: int = 8
     quote_chars: int = 80  # a foreign claim kept in memory, and the most a note may share with a message
+
+    # Trade (rules 8; Phase 3 readings in rules 21)
+    caravan_capacity: int = 100  # goods one caravan carries; Carts doubles it
+    base_value: dict[str, int] = field(default_factory=lambda: {
+        "food": 1, "timber": 2, "stone": 2, "metal": 4, "luxury": 8})
+    blueprint_value_per_era: int = 100
+    market_fee: int = 100  # per mille of each good received, without a market
+    market_fee_with_market: int = 50
+    culture_market_fee: dict[str, int] = field(default_factory=lambda: {"saltreach": 20})
+    fee_halving_view: int = 30
+    fair_trade_margin: int = 250  # per mille: within 25% of base value
+    max_offer_goods: int = 6
+    max_offer_ticks: int = 8
 
     # Reputation (rules 11)
     reputation_drift_every: int = 4
