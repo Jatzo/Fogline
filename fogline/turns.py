@@ -60,6 +60,14 @@ Decider = Callable[[dict, dict], Reply]  # (observation, scratch memory) -> repl
 
 
 @dataclass(frozen=True)
+class Refused:
+    """A decider's answer when a ruler's text never became a reply (fogline/schema.py). The turn
+    counts as wholly invalid, and the reasons go back to the ruler next turn."""
+
+    rejections: tuple[dict, ...]
+
+
+@dataclass(frozen=True)
 class TurnRecord:
     """One decision, kept by the runner outside the hashed state, keyed (tick, civ, step)."""
 
@@ -149,6 +157,10 @@ def _apply(config: Config, state: dict, civ_id: str, seen: dict | None, reply: o
     malformed = False  # a garbled reply counts as a wholly invalid turn, so it can't dodge the skip
     if reply is None:
         parsed: tuple | Reason = (config.heartbeat_ticks, [], None)
+    elif isinstance(reply, Refused):
+        malformed = True
+        rejections.extend(dict(r) for r in reply.rejections)
+        parsed = (1, [], None)  # ask again next tick; three in a row and the turn after is skipped
     elif not isinstance(reply, dict) or schema.depth(reply) > schema.MAX_DEPTH:
         malformed = True
         reject(-1, "", Reason.MALFORMED)
@@ -196,7 +208,10 @@ def _apply(config: Config, state: dict, civ_id: str, seen: dict | None, reply: o
         turn["invalid_streak"] = 0  # an empty turn resets the streak too (rules 21)
     turn["rejections"] = rejections
     too_deep = isinstance(reply, (dict, list)) and schema.depth(reply) > schema.MAX_DEPTH
-    kept = "(reply nested too deep to keep)" if too_deep else copy.deepcopy(reply)
+    if isinstance(reply, Refused):
+        kept = None
+    else:
+        kept = "(reply nested too deep to keep)" if too_deep else copy.deepcopy(reply)
     return TurnRecord(now, civ_id, "decide", seen, kept, tuple(rejections))
 
 

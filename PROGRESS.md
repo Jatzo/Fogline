@@ -92,5 +92,7 @@ Milestones: M8 observation and sea border, M9 schemas and the frontier rule, M10
 
 - [x] M9 typed arguments in `actions.action_table()`, `schema.validate_reply()` (20,000-character cap, JSON, depth 8, top-level keys) and `schema.json_schema()` exported from the table; move orders route over the civ's seen map, so unseen sea no longer answers "unreachable"; a 2,000-deep reply is refused, not crashed on. `set_note` moves to M12 with the memory API it writes to (214 tests)
 
+- [x] M10 `fogline/llm.py`: mock, live (`claude -p` on the plan login), recorder and replay adapters; outputs stored as status plus raw text plus observation hash; `turns.Refused` for text that never became a reply; replay of a recorded mock run gives the same hash; swapping one civ's ruler leaves the others' observations byte-identical. One live smoke call: 12 s, $0.072 reported, 1,024 thinking tokens, reply refused as malformed (`reorders` at the top level). Open: 5,985 input tokens for about 1,600 to 2,000 tokens of prompt and observation (ADR 0007). A depth check before parsing fixed a Windows and Linux disagreement (debug log). 222 tests.
+
 ## Next session
-M10: LLM adapter and stored outputs.
+Find what fills the extra input tokens in a `claude -p` call (ADR 0007), then M11: scheduler and runner.
