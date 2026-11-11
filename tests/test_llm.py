@@ -1,6 +1,7 @@
 """The adapter, stored outputs and replay (PLAN sections 10, 11 and 14). No live calls."""
 
 import json
+import subprocess
 
 import pytest
 
@@ -115,3 +116,21 @@ def test_the_live_adapter_reports_a_failed_command_as_an_error_not_a_crash():
     adapter = llm.LiveAdapter("system", command=("fogline-no-such-command",))
     outcome = adapter.call((0, "verdance", "decide"), {"tick": 0})
     assert outcome.status == llm.ERROR and "could not start" in outcome.raw
+
+
+def test_the_live_adapter_runs_in_safe_mode_and_reads_the_result(monkeypatch):
+    # Without --safe-mode the operator's own instructions and hook output reach the ruler (ADR 0007).
+    sent = {}
+
+    def fake_run(argv, **kwargs):
+        sent["argv"], sent["input"] = argv, kwargs["input"]
+        envelope = {"type": "result", "is_error": False, "result": '{"actions": []}'}
+        return subprocess.CompletedProcess(argv, 0, json.dumps(envelope), "")
+
+    monkeypatch.setattr(llm.subprocess, "run", fake_run)
+    outcome = llm.LiveAdapter("rules of play").call((0, "verdance", "decide"), {"tick": 0})
+    assert outcome == llm.Outcome(llm.OK, '{"actions": []}')
+    argv = sent["argv"]
+    assert "--safe-mode" in argv and argv[argv.index("--tools") + 1] == ""
+    assert argv[argv.index("--system-prompt") + 1] == "rules of play"
+    assert sent["input"] == '{"tick":0}'

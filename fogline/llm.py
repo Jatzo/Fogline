@@ -59,15 +59,16 @@ class MockAdapter:
 
 class LiveAdapter:
     """One `claude -p` subprocess per call, on the operator's plan login (no API key). It runs in
-    an empty folder with no tools, no MCP servers and no saved session, so the only context is the
-    system prompt and the observation."""
+    safe mode (no CLAUDE.md, hooks, skills, plugins or user settings) in an empty folder, with no
+    tools, no MCP servers and no saved session. Without safe mode, Claude Code builds the
+    operator's own instructions and hook output into every call (ADR 0007)."""
 
     def __init__(self, system_prompt: str, model: str = "claude-haiku-5-5", timeout: float = 90.0,
                  command: tuple[str, ...] = ("claude",)):
         self.system_prompt, self.model, self.timeout, self.command = system_prompt, model, timeout, command
 
     def call(self, key: Key, observation: dict) -> Outcome:
-        argv = [*self.command, "-p", "--model", self.model, "--output-format", "json",
+        argv = [*self.command, "-p", "--safe-mode", "--model", self.model, "--output-format", "json",
                 "--system-prompt", self.system_prompt, "--tools", "", "--strict-mcp-config",
                 "--no-session-persistence"]
         with tempfile.TemporaryDirectory() as empty:
