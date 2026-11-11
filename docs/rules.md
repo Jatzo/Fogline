@@ -403,6 +403,7 @@ Where the rules above leave a choice open, the engine does this (approved 2026-1
 - **Harsh winter** falls on every civ at the next winter tick.
 - **Plague and quirk** stability changes are one-off shocks. The **comet** lowers the stability target by 5 for 2 ticks.
 - **Upkeep in arrears** is retried every tick. A building's bill is paid whole or not at all.
+  - **Bills don't stack (approved 2026-11-11):** a building owes one bill at most. A winter that comes while it is still unpaid adds nothing; the penalty is half output for as long as the bill stays open.
 - **Tool wear** is paid in full or not at all.
 - **Research pool** (ADR 0002): one pool per civ. A tech completes when the pool covers its points and the stock covers its resources, paid at completion. Switching keeps the pool; points with no tech chosen are lost until the tree is finished, when they become prestige.
 - **Build queue:** up to 5 entries per civ, one build at a time per settlement. The cost is paid when a build starts. Building happens at the end of step 7, before the score, and a new building works from the next tick. A repair takes 1 tick; a rebuild takes the normal build ticks.
