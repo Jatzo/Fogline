@@ -77,9 +77,12 @@ Two reviews, one of the engine and economy and one of worldgen, turns, units, si
 
 Deferred:
 - Snapshot load doesn't check the config hash. No resume path outside the tests yet; lands with campaign resume.
-- Operator rulings still open: whether the 4-tick growth window counts unit upkeep; whether the luxury +5 lasts 1 tick or 4; the brief lists nodes on own-land tiles never seen (claim radius 4, sight 2).
-- No behaviour tests yet for tool shortage, cold deaths, luxury use, event durations or the secession window.
 - Low: a stage drops one band per 4 ticks; a reply nested about 1,000 deep raises `RecursionError` (matters in Phase 2).
 
+Rulings and tests after the review (183 tests):
+- The 4-tick growth window counts unit food upkeep, due whether paid or not (rules 4.1 and 21). Golden hash re-pinned: every civ starts with a scout.
+- Luxury +5 holds for 4 ticks and every settlement uses luxury; a civ's brief lists nodes on all its own land (rules 21, no code change).
+- Behaviour tests for tool shortage, cold deaths, luxury use, drought and comet durations and the secession idle window; each fails when its rule is broken.
+
 ## Next session
-Behaviour tests for the deferred list, the open rulings, then Phase 2 in plan mode.
+Phase 2 in plan mode.
