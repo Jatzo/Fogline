@@ -109,6 +109,8 @@ def test_contestable_nodes_exist_and_belong_to_nobody(worlds):
         contest = [n for n in world["nodes"].values() if n["home"] == ""]
         assert CONFIG.contestable_nodes_min <= len(contest) <= CONFIG.contestable_nodes_max
         assert not any(n["small"] for n in contest)
+        # Outposts once claimed these on 21 of 100 seeds (7, 12, 14 and 19 among them); see the debug log.
+        assert not any(n["tile"] in world["territory"] for n in contest)
 
 
 def test_every_town_has_a_distinct_specialty_a_foreign_need_and_a_quirk(worlds):

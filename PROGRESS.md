@@ -68,5 +68,18 @@ Update this at the end of every Claude Code session.
 - The map is painted rather than a tile grid (the operator's call): warped biome edges, trees, peaks, culture roof styles, lanes that branch, frontiers smoothed by marching squares.
 - One request loads the whole run: 4.8 MB and 0.9 s for 101 snapshots; the terrain paints once in about 1.3 s, then each frame draws in about 6 ms.
 
+## Phase 1 review (2026-11-11)
+Two reviews, one of the engine and economy and one of worldgen, turns, units, sight and the runner. Fixed (176 tests):
+- A foreign unit id now answers `unknown_unit`, like a made-up one, so a guess can't reveal a civ before contact.
+- Contestable nodes are placed after founding and never start in anyone's land (21 of 100 seeds did; debug log). Seed 1 golden hash re-pinned.
+- The runner refuses an `--out` folder that isn't empty.
+- Rules 21: a building owes one upkeep bill at most (approved, no code change).
+
+Deferred:
+- Snapshot load doesn't check the config hash. No resume path outside the tests yet; lands with campaign resume.
+- Operator rulings still open: whether the 4-tick growth window counts unit upkeep; whether the luxury +5 lasts 1 tick or 4; the brief lists nodes on own-land tiles never seen (claim radius 4, sight 2).
+- No behaviour tests yet for tool shortage, cold deaths, luxury use, event durations or the secession window.
+- Low: a stage drops one band per 4 ticks; a reply nested about 1,000 deep raises `RecursionError` (matters in Phase 2).
+
 ## Next session
-Phase 1 end-of-phase code review, then Phase 2.
+Behaviour tests for the deferred list, the open rulings, then Phase 2 in plan mode.

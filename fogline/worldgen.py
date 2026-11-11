@@ -155,9 +155,10 @@ def _build(config: Config, seed: int, attempt: int) -> dict:
         _ensure_farmland(config, state, capitals[civ])
     for civ in civ_ids:
         _home_nodes(config, state, seed, attempt, civ, capitals[civ])
-    _contestable_nodes(config, state, seed, attempt, capitals)
     for civ in civ_ids:
         _found_civ(config, state, seed, attempt, civ, capitals)
+    # After founding, so no outpost's claim can swallow a node meant to belong to nobody.
+    _contestable_nodes(config, state, seed, attempt, capitals)
     return state
 
 
@@ -304,7 +305,7 @@ def _contestable_nodes(config: Config, state: dict, seed: int, attempt: int,
     candidates = []
     for y in range(world_map["size"]):
         for x in range(world_map["size"]):
-            if not layout.is_land(world_map, x, y) or tile_key(x, y) in taken:
+            if not layout.is_land(world_map, x, y) or tile_key(x, y) in taken or tile_key(x, y) in state["territory"]:
                 continue
             if any(_dist2((x, y), pos) <= home2 for pos in capitals.values()):
                 continue
@@ -320,6 +321,8 @@ def _contestable_nodes(config: Config, state: dict, seed: int, attempt: int,
             chosen.append(tile)
         if len(chosen) == wanted:
             break
+    if len(chosen) < config.contestable_nodes_min:
+        raise _Reroll(f"only {len(chosen)} contestable nodes fit")
     sizes = {"forest": config.forest_node_size, "stone": config.stone_node_size, "metal": config.metal_node_size}
     for index, (x, y) in enumerate(chosen):
         kind = ("forest", "stone", "metal")[draw.randrange(3)]
