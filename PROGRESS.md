@@ -112,5 +112,12 @@ Two reviews: fog and prompts; adapter, replay, scheduler and memory. No determin
 
 Deferred: replay doesn't check that every stored row was used or that the manifest matches; fenced JSON from Haiku is refused (kept strict; watch the first live run); the event token mapper misses an id with punctuation attached; a trigger naming an unmet civ keeps its name with the detail blanked (matters once Phase 3 adds pre-contact triggers); outputs.jsonl lines are in finish order.
 
+## Phase 3 plan (approved 2026-11-11)
+Milestones: M15 contact surface (reputation, met civs as words, widened triggers after contact, unmet names refused like made-up ones, tech catch-up and hints); M16 messages, couriers, hardening (NFKC, strip control and markup and role markers until stable, a fresh delimiter per message) and foreign claims (80-character quotes; no laundering into own notes); M17 trade, caravans, escrow, fee, valuation, blueprints, reputation from acts, tracks, dossiers, scripted trader (ADR 0008); M18 slice setup (Saltreach culture, slice placement, cost meter, no-contact baseline, inspector); M19 the live slice after an approved cost estimate.
+
+Decisions: caravan 20 timber and 10 food, 2 people, 1 food upkeep, move 4, 1 tick to train, carries 100 (200 with Carts); slice pair Verdance and Saltreach; dossiers are engine facts plus the ruler's notes; a message wakes the receiver next tick (no same-tick replies). Readings: the fee is halved on the receiver's view of 30 or more; fees are per good, rounded down; a bundle is valued at last pair prices against food, else base values; a reserved caravan walks to its nearest settlement first and can't be moved while reserved; dossiers don't score claims against truth or list grievances in v1.
+
+Tick order: step 1 queues couriers (delivery tick fixed at dispatch), escrows offers and acceptances; production, research; a new trade step expires offers and forms legs; movement advances legs and delivers due couriers; leg delivery (fee, blueprints, reputation, tracks) before sight; reputation drifts in events every 4 ticks. New ledger rules: escrow, escrow return, trade delivery, market fee, blueprint mint, blueprint destroyed; escrow owner `offer:<id>`, transit owner the leg unit.
+
 ## Next session
-Phase 3 in plan mode. Before each live experiment, check a tiny call's input tokens again (ADR 0007). To watch the mock run: `python -m fogline.viewer --runs runs`, pick p2-mock.
+M15: the contact surface. Before each live experiment, check a tiny call's input tokens again (ADR 0007). Before each live experiment, check a tiny call's input tokens again (ADR 0007). To watch the mock run: `python -m fogline.viewer --runs runs`, pick p2-mock.
