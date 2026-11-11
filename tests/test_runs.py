@@ -133,8 +133,9 @@ def test_a_snapshot_round_trips_to_the_same_hash(tmp_path):
 
 
 # The state hash of seed 1 after 200 ticks with builder bots and events on. Any change to the
-# rules, the numbers or the bots changes it; the commit that does so says why.
-GOLDEN_SEED_1_TICK_200 = "11f502059583072f3a46c7175b138ac74d9e7ef6d3758a6d552ce26790964eb6"
+# rules, the numbers, the bots or the set of config fields (the config hash lives in the state)
+# changes it; the commit that does so says why.
+GOLDEN_SEED_1_TICK_200 = "fa119c62a99bdc9bc20c741d51c468511aef9625867ef7cf5c8fd508178796b4"
 
 
 def test_seed_1_at_tick_200_matches_the_golden_hash():
@@ -165,3 +166,44 @@ def test_a_civ_that_never_trades_has_declined_by_tick_100(quiet_seed_1, civ_id):
     pop_down = row["pop_at_100"] * 100 <= row["peak_pop"] * 85
     food_down = row["food_output_at_100"] * 100 <= row["peak_food_output"] * 85
     assert pop_down or food_down, row
+
+
+# Tree pace (rules 14) and towns (rules 15.2) are measured in a supplied world, a stand-in for trade
+# until Phase 3 (ADR 0004). An isolated civ can't do either: its timber nets to zero by about tick 40.
+CIVS = ["dunerunners", "frostmark", "ironhold", "saltreach", "verdance"]
+
+
+def _supplied(floor: int, ticks: int) -> tuple[dict, dict]:
+    return run.play(dataclasses.replace(Config(), events_enabled=False, supply_floor=floor), 1, ticks)
+
+
+@pytest.fixture(scope="module")
+def tree_run():
+    return _supplied(2_000, 400)
+
+
+@pytest.fixture(scope="module")
+def town_run():
+    return _supplied(50_000, 200)
+
+
+@pytest.mark.parametrize("civ_id", CIVS)
+def test_a_supplied_builder_finishes_the_tree_between_tick_300_and_400(tree_run, civ_id):
+    assert tree_run[1][civ_id]["tree_done"] in range(300, 401), tree_run[1][civ_id]["techs"]
+
+
+@pytest.mark.parametrize("civ_id", CIVS)
+def test_a_supplied_builder_grows_an_outpost_to_town_by_tick_200(town_run, civ_id):
+    assert town_run[1][civ_id]["first_town"] is not None, town_run[1][civ_id]["towns"]
+
+
+def test_the_supply_tops_up_basics_only_and_keeps_the_ledger_whole(tree_run):
+    state = tree_run[0]
+    supplied = {key.split(":")[1] for key, value in state["ledger"].items() if key.endswith(":supply") and value}
+    assert supplied == {"food", "timber", "stone", "metal"}
+    _assert_conserved(state)
+
+
+def test_the_supply_is_off_by_default():
+    state, _ = run.play(dataclasses.replace(Config(), events_enabled=False), 1, 20)
+    assert not any(key.endswith(":supply") for key in state["ledger"])

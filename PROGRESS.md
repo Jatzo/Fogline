@@ -38,7 +38,7 @@ Update this at the end of every Claude Code session.
 - [x] M3 economy tick: production with worker allocation, consumption, upkeep, growth, starvation, stability, unrest, secession, Providence and quirk events (75 tests)
 - [x] M4 tech tree, research pool, build queue, placement, contestable claims, growth stages, fishing (104 tests)
 - [x] M5 units, sight and contact, the turn path (briefs, replies, one action table with reason codes), wakes off the event log (ADR 0003), reorder rules, spiral scout bot (128 tests)
-- [ ] M6 part 1 committed: snapshot.py, run.py (headless runner and run folder), builder bot, brief gains held techs and own nodes, no-ruin rule for fields and camps, tuned starting stocks and winter fuel 2; tests for the smoke run, determinism across processes, golden hash (seed 1, tick 200), RNG isolation, fresh-process resume, snapshot round trip, run-out schedule and decline (146 tests). Dunerunners timber raised to 800 (approved 2026-11-11). Still to do: tree pace, outpost to town.
+- [x] M6 runner, snapshots, builder bot and tuning: run-out schedule and decline in isolation, tree pace and towns in a supplied world (ADR 0004), first debug-log entry (160 tests)
 - [ ] M7 viewer
 
 ## Found in M3
@@ -60,7 +60,7 @@ Update this at the end of every Claude Code session.
 - Tree pace and towns are measured in a supplied world (stand-in for trade, ADR 0004); the isolation tests stay unsupplied.
 - Era points doubled (160, 480, 1,200); growth may also run on a store of 40 ticks of eating; starting stocks Ironhold food 1,500, Dunerunners timber 650, Saltreach timber 600.
 - Builder bot: farms go where people lack work (first debug-log entry), housing pauses only while timber falls and is under 100.
-- Measured with scratch probes: supplied at 2,000 (food, timber, stone, metal), every civ finishes the tree at 311 to 384 on seeds 1 to 5; supplied at 50,000, every civ has an outpost town by 132 to 175.
+- Measured with scratch probes: supplied at 2,000 (food, timber, stone, metal), every civ finishes the tree at 311 to 384 on seeds 1 to 5; supplied at 50,000, every civ has an outpost town by 132 to 175. The tests on seed 1 give 312 to 383 and 131 to 174.
 
 ## Next session
-M6 part 2: options for tree pace and outpost growth, then their tests. Then M7, the viewer.
+M7, the read-only viewer. Phase 1 still needs its code review and a passing CI run on push.

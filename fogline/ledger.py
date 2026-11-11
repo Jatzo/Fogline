@@ -37,6 +37,7 @@ class Rule(StrEnum):
     TRAINED = "trained"  # people leaving the population to serve in a unit
     DISBANDED = "disbanded"  # people returning from a unit
     DISCOVERY = "discovery"  # Providence mineral discovery creates a node
+    SUPPLY = "supply"  # test-only top-up standing in for trade (ADR 0004)
 
 
 class LedgerError(ValueError):

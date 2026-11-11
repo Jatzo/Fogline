@@ -116,6 +116,7 @@ class Config:
     culture_growth_rate: dict[str, int] = field(default_factory=lambda: {"verdance": 20})
     starvation_divisor: int = 4
     food_window_ticks: int = 4
+    supply_floor: int = 0  # test-only stand-in for trade (ADR 0004); 0 is off
     growth_store_ticks: int = 40  # a food stock this many ticks of eating deep also lets a civ grow
     food_per_person: int = 1
     spoilage: int = 5

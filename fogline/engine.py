@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from fogline import construction, ledger, rng, rules, sight, techs, turns, units, worldgen
-from fogline.config import RESOURCES, Config
+from fogline.config import BASICS, RESOURCES, Config
 from fogline.intmath import PER_MILLE, ceil_div, floor_div, per_mille
 from fogline.layout import EXTRACTION, biome_name, is_land, node_tiles, occupied_tiles
 from fogline.ledger import Rule
@@ -40,6 +40,7 @@ def tick(config: Config, state: dict, log: Log = None, *,
     sight.update(config, state, now)
     _consumption(config, state, now, log, scratch)
     _events(config, state, now, log, scratch)
+    _supply(config, state, log)
     state["tick"] = now + 1
     return records
 
@@ -52,6 +53,18 @@ def run(config: Config, state: dict, ticks: int, log: Log = None, *,
     for _ in range(ticks):
         records += tick(config, state, log, deciders=deciders)
     return records
+
+
+def _supply(config: Config, state: dict, log: Log) -> None:
+    """Test-only stand-in for trade (ADR 0004): raise each civ's basic stocks to config.supply_floor.
+    Luxury is left out because a luxury stock lifts stability, and with it every line's output."""
+    if not config.supply_floor:
+        return
+    for civ_id in sorted(state["civs"]):
+        stocks = state["civs"][civ_id]["stocks"]
+        for resource in BASICS:
+            if stocks[resource] < config.supply_floor:
+                _apply(state, log, civ_id, stocks, resource, config.supply_floor - stocks[resource], Rule.SUPPLY)
 
 
 # ---------------------------------------------------------------- helpers

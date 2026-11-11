@@ -391,8 +391,8 @@ Each tick there is a 2% draw (events stream) for one world event. The operator c
 | 0 integers and streams | determinism and RNG-isolation tests |
 | 3, 4 production and consumption | conservation: every unit created or destroyed is logged by a named rule |
 | 4.7 run-out schedule | the non-trading bot runs out at tick 60 to 80 and loses at least 15% of its peak population, or 15% of its output, by tick 100 |
-| 14 tree pace | a full-focus scripted bot finishes the tree between tick 300 and 400 |
-| 15.2 stages | each scripted civ reaches town by tick 200 on the default seed |
+| 14 tree pace | supplied at 2,000 (food, timber, stone, metal; ADR 0004), the builder bot on seed 1 finishes the tree between tick 300 and 400 |
+| 15.2 stages | supplied at 50,000 (ADR 0004), each scripted civ grows an outpost to town by tick 200 on seed 1 |
 | 6 contact timing | Phase 4: median first contact of scripted scouts over 10 seeds lands in tick 30 to 60 |
 
 ## 21. Readings settled while building the engine
@@ -430,3 +430,4 @@ Where the rules above leave a choice open, the engine does this (approved 2026-1
   - Growth may also run on a food stock of 40 ticks of eating (4.1). Without it Ironhold and Dunerunners never grow, since their farms never cover what they eat, so a food-short civ that imports food could never grow either. At 8 ticks they grew on their starting food and ran out at 38 to 48.
   - Starting stocks retuned (4.7): Ironhold food 1,500, Dunerunners timber 650, Saltreach timber 600. Seed 1, events off: Dunerunners food runs out at 61 and timber at 79, Frostmark stone at 67, Ironhold food at 79, Saltreach timber at 63, Verdance metal at 71; every civ declines by tick 100.
   - The builder puts a new farm in the settlement with the most people beyond its farm, mine and lumber camp slots, not in its chosen town first (docs/debug-log.md).
+  - **Supply (test-only, ADR 0004):** `supply_floor`, 0 by default. When set, at the end of each tick (after events, before the tick counter moves on) each civ's food, timber, stone and metal below the floor is raised to it, logged as `supply`. Never luxury. Measured on seed 1, events off: at 2,000 every civ finishes the tree at 312 to 383; at 50,000 every civ has an outpost town at 131 to 174.
