@@ -174,6 +174,8 @@ def play(config: Config, seed: int, ticks: int, bot: str = "builder", out: Path 
     if recorder:
         for civ_id, calls in recorder.usage().items():
             summary[civ_id]["calls"] = calls
+        for civ_id, spent in recorder.tokens().items():
+            summary[civ_id]["tokens"] = spent
     if out:
         (out / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="ascii")
     return state, summary

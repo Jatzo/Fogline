@@ -164,3 +164,18 @@ def test_a_live_run_carries_on_once_a_call_succeeds(tmp_path, monkeypatch):
     _fake_cli(monkeypatch, [1, 1, reply])
     state, summary = run.play(CONFIG, 1, 30, out=tmp_path / "live", mode="live", llm_civs=["verdance"])
     assert state["tick"] == 30 and summary["verdance"]["calls"][llm.OK] > 0
+
+
+def test_a_live_output_keeps_only_whitelisted_usage_numbers(tmp_path, monkeypatch):
+    envelope = {"is_error": False, "result": json.dumps({"actions": [], "end_turn": {"next_wake": {"ticks": 8}}}),
+                "total_cost_usd": 0.0084, "session_id": "not-for-the-repo",
+                "usage": {"input_tokens": 2, "output_tokens": 4, "cache_creation_input_tokens": 1039,
+                          "cache_read_input_tokens": 0, "service_tier": "standard", "inference_geo": "global"}}
+    monkeypatch.setattr(llm.subprocess, "run",
+                        lambda argv, **kw: subprocess.CompletedProcess(argv, 0, json.dumps(envelope), ""))
+    _, summary = run.play(CONFIG, 1, 2, out=tmp_path / "live", mode="live", llm_civs=["verdance"])
+    row = llm.load_outputs(tmp_path / "live" / "outputs.jsonl")[0]
+    assert row["usage"] == {"input_tokens": 2, "output_tokens": 4, "cache_creation_input_tokens": 1039,
+                            "cache_read_input_tokens": 0, "total_cost_usd": 0.0084}
+    rows = llm.load_outputs(tmp_path / "live" / "outputs.jsonl")
+    assert summary["verdance"]["tokens"]["input_tokens"] == sum(r["usage"]["input_tokens"] for r in rows)

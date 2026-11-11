@@ -34,6 +34,22 @@ Key = tuple[int, str, str]  # (tick, civ, step)
 class Outcome:
     status: str  # ok, timeout or error
     raw: str  # the reply text for ok; a short note for timeout or error
+    usage: dict | None = None  # token counts and cost for a live call (USAGE_FIELDS only)
+
+
+# The numbers kept from a live call's output envelope. The envelope is untrusted and the repo is
+# public, so nothing else from it is stored (session ids, paths, account details).
+USAGE_FIELDS = ("input_tokens", "output_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")
+
+
+def _usage(envelope: dict) -> dict | None:
+    counts = envelope.get("usage") if isinstance(envelope.get("usage"), dict) else {}
+    kept = {k: counts[k] for k in USAGE_FIELDS
+            if isinstance(counts.get(k), int) and not isinstance(counts.get(k), bool)}
+    cost = envelope.get("total_cost_usd")
+    if isinstance(cost, (int, float)) and not isinstance(cost, bool):
+        kept["total_cost_usd"] = cost
+    return kept or None
 
 
 class Adapter(Protocol):
@@ -99,7 +115,7 @@ class LiveAdapter:
             return Outcome(ERROR, f"output was not JSON: {done.stdout[:200]}")
         if not isinstance(envelope, dict) or envelope.get("is_error") or not isinstance(envelope.get("result"), str):
             return Outcome(ERROR, f"no result in output: {done.stdout[:300]}")
-        return Outcome(OK, envelope["result"])
+        return Outcome(OK, envelope["result"], _usage(envelope))
 
 
 class Recorder:
@@ -113,13 +129,22 @@ class Recorder:
         outcome = self.inner.call(key, observation)
         tick, civ, step = key
         row = {"tick": tick, "civ": civ, "step": step, "status": outcome.status, "raw": outcome.raw,
-               "obs_hash": state_hash(observation)}
+               "obs_hash": state_hash(observation), "usage": outcome.usage}
         with self.lock:
             self.rows.append(row)
             if self.path:
                 with open(self.path, "a", encoding="utf-8") as handle:
                     handle.write(json.dumps(row, sort_keys=True) + "\n")
         return outcome
+
+    def tokens(self) -> dict[str, dict[str, float]]:
+        """Token counts and cost so far per civ, from the rows that carry usage (live calls)."""
+        totals: dict[str, dict[str, float]] = {}
+        for row in self.rows:
+            for key, value in (row.get("usage") or {}).items():
+                civ = totals.setdefault(row["civ"], {})
+                civ[key] = civ.get(key, 0) + value
+        return totals
 
     def usage(self) -> dict[str, dict[str, int]]:
         """Calls so far per civ, by status."""
