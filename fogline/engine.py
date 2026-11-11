@@ -305,7 +305,7 @@ def _consumption(config: Config, state: dict, now: int, log: Log, scratch: dict)
         need = pop * config.food_per_person
         eaten = min(need, stocks["food"])
         _apply(state, log, civ_id, stocks, "food", -eaten, Rule.EATING)
-        units.pay_upkeep(config, state, civ_id, log)
+        unit_food = units.pay_upkeep(config, state, civ_id, log)
         unfed = ceil_div(need - eaten, config.food_per_person)
 
         fuel = rules.fuel_needed(config, pop, season, harsh)
@@ -332,7 +332,7 @@ def _consumption(config: Config, state: dict, now: int, log: Log, scratch: dict)
         if no_winter_fuel:
             _kill(state, log, civ_id, rules.cold_deaths(config, civ_pop(state, civ_id)), Rule.DEATH_COLD)
 
-        window = civ["food_window"] + [[info["food_produced"], need]]
+        window = civ["food_window"] + [[info["food_produced"], need + unit_food]]
         civ["food_window"] = window[-config.food_window_ticks:]
         surplus = (len(civ["food_window"]) == config.food_window_ticks
                    and sum(p for p, _ in civ["food_window"]) >= sum(c for _, c in civ["food_window"]))

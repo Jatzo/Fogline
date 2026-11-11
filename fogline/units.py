@@ -150,11 +150,14 @@ def move_all(config: Config, state: dict, now: int) -> None:
             record_event(state, now, "arrived", unit["civ"], unit_id)
 
 
-def pay_upkeep(config: Config, state: dict, civ_id: str, log: Log) -> None:
+def pay_upkeep(config: Config, state: dict, civ_id: str, log: Log) -> int:
     """Step 6, after eating. Army upkeep grows by 250 per mille for every full 10 army units.
 
-    A unit whose food can't be paid disbands home; its people survive (rules 21).
+    A unit whose food can't be paid disbands home; its people survive (rules 21). Returns the food
+    the units were due, paid or not, which the growth window counts as consumption the way it
+    counts people who went unfed (rules 4.1).
     """
+    due = 0
     now = state["tick"]
     stocks = state["civs"][civ_id]["stocks"]
     ids = of_civ(state, civ_id)
@@ -171,7 +174,9 @@ def pay_upkeep(config: Config, state: dict, civ_id: str, log: Log) -> None:
             food = army_milli // PER_MILLE - before // PER_MILLE
         else:
             food = spec["upkeep"]
+        due += food
         if stocks["food"] < food:
             discharge(state, unit_id, log, reason="unit_starved")
             continue
         ledger.apply(stocks, state["ledger"], log, civ_id, "food", -food, ledger.Rule.UNIT_UPKEEP, now)
+    return due

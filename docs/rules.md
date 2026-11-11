@@ -73,7 +73,7 @@ Base output per worker per tick, before multipliers:
 ### 4.1 Population
 - Each population unit is one worker. Unassigned workers idle, produce nothing and still eat.
 - Housing: each housing building holds 10. A settlement can't grow past its housing.
-- **Growth:** a settlement grows by 15 per mille (Verdance 20) of its population each tick when all three hold: nobody was unfed this tick; the civ's food production over the last 4 ticks was at least its consumption over those ticks; and the settlement has free housing. The second can also be met by a food stock that holds at least 40 ticks of eating (population × 1, not unit upkeep), read after eating and before spoilage. A civ living off a thin reserve does not grow; one living off a deep store, or off imports, does.
+- **Growth:** a settlement grows by 15 per mille (Verdance 20) of its population each tick when all three hold: nobody was unfed this tick; the civ's food production over the last 4 ticks was at least its consumption over those ticks, counting what its people and its units were due to eat; and the settlement has free housing. The second can also be met by a food stock that holds at least 40 ticks of eating (population × 1, not unit upkeep), read after eating and before spoilage. A civ living off a thin reserve does not grow; one living off a deep store, or off imports, does.
 - **Starvation:** unfed people = food needed − food available. Each tick, deaths = unfed ÷ 4, rounded up. The stability cost is in section 5.
 - People serving in units eat through unit upkeep (section 6), not the 1 food a head.
 
@@ -404,6 +404,7 @@ Where the rules above leave a choice open, the engine does this (approved 2026-1
 - **Plague and quirk** stability changes are one-off shocks. The **comet** lowers the stability target by 5 for 2 ticks.
 - **Upkeep in arrears** is retried every tick. A building's bill is paid whole or not at all.
   - **Bills don't stack (approved 2026-11-11):** a building owes one bill at most. A winter that comes while it is still unpaid adds nothing; the penalty is half output for as long as the bill stays open.
+- **Growth window (changes 4.1, approved 2026-11-11):** the 4-tick window counts unit food upkeep as consumption, due whether or not it was paid, as people are counted by what they need. The 40-tick store test still counts people only.
 - **Tool wear** is paid in full or not at all.
 - **Research pool** (ADR 0002): one pool per civ. A tech completes when the pool covers its points and the stock covers its resources, paid at completion. Switching keeps the pool; points with no tech chosen are lost until the tree is finished, when they become prestige.
 - **Build queue:** up to 5 entries per civ, one build at a time per settlement. The cost is paid when a build starts. Building happens at the end of step 7, before the score, and a new building works from the next tick. A repair takes 1 tick; a rebuild takes the normal build ticks.

@@ -5,7 +5,7 @@ import dataclasses
 
 import pytest
 
-from fogline import engine, ledger, worldgen
+from fogline import engine, ledger, units, worldgen
 from fogline.config import Config
 from fogline.state import state_hash
 
@@ -143,6 +143,36 @@ def test_a_civ_short_of_food_grows_only_on_a_deep_store(start):
     engine.tick(QUIET, state)
     assert capital["growth_acc"] != before
     _assert_conserved(state)
+
+
+def test_the_growth_window_counts_what_units_eat(start):
+    # Rules 4.1: production must cover consumption, and units' food is consumption. Verdance's window is
+    # set so that its next tick's production covers its people exactly but not its units as well.
+    state = _fresh(start)
+    engine.run(QUIET, state, 4)
+    civ = state["civs"]["verdance"]
+    units.spawn(QUIET, state, "verdance", "levy", "verdance-0", None, pay=False, ready_now=True)
+    need = engine.civ_pop(state, "verdance") * QUIET.food_per_person
+    stock = need + 10  # everyone eats, units are paid, and the 40-tick store clause stays shut
+    ledger.apply(civ["stocks"], state["ledger"], None, "verdance", "food", stock - civ["stocks"]["food"],
+                 ledger.Rule.PRODUCTION, state["tick"])
+
+    probe = copy.deepcopy(state)
+    engine.tick(QUIET, probe)
+    produced, consumed = probe["civs"]["verdance"]["food_window"][-1]
+    unit_food = consumed - need
+    assert unit_food == 2  # the starting scout and the levy, 1 each
+
+    def grows_with(margin):
+        trial = copy.deepcopy(state)
+        trial["civs"]["verdance"]["food_window"] = [[max(margin, 0), max(-margin, 0)], [0, 0], [0, 0]]
+        before = trial["settlements"]["verdance-0"]["growth_acc"]
+        engine.tick(QUIET, trial)
+        return trial["settlements"]["verdance-0"]["growth_acc"] != before
+
+    assert not grows_with(need - produced)  # covers the people only
+    assert grows_with(need + unit_food - produced)  # covers people and units
+    _assert_conserved(probe)
 
 
 def test_starving_civ_loses_a_quarter_of_its_unfed_rounded_up(start):
