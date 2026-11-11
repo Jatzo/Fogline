@@ -111,7 +111,9 @@ def _noise(seed: int, attempt: int, size: int, spacing: int, purpose: str):
 
 
 def _build(config: Config, seed: int, attempt: int) -> dict:
-    size = config.map_size
+    # The land is drawn on its own grid first, then set inside the sea border, so the border
+    # adds ocean round the world rather than drowning anyone's home land.
+    size = config.map_size - 2 * config.sea_border
     centre = (size // 2, size // 2)
     civ_ids = [spec.civ_id for spec in config.civs]
 
@@ -128,11 +130,16 @@ def _build(config: Config, seed: int, attempt: int) -> dict:
         y = centre[1] + config.capital_ring_radius * uy // 1000 + jitter.randint(-config.capital_jitter, config.capital_jitter)
         capitals[civ] = (min(max(x, low), high), min(max(y, low), high))
 
-    biome = _paint_biomes(config, seed, attempt, capitals, centre)
+    biome = _paint_biomes(config, seed, attempt, capitals, centre, size)
     river = [["0"] * size for _ in range(size)]
     for civ in civ_ids:
         if config.civ(civ).home_biome in ("forest", "desert"):
             _draw_river(seed, attempt, civ, centre, capitals[civ], river)
+    border = config.sea_border
+    biome = _coast(_pad(biome, border, "S"))
+    river = _pad(river, border, "0")
+    capitals = {civ: (x + border, y + border) for civ, (x, y) in capitals.items()}
+    size = config.map_size
 
     state = {
         "version": 1,
@@ -163,8 +170,7 @@ def _build(config: Config, seed: int, attempt: int) -> dict:
 
 
 def _paint_biomes(config: Config, seed: int, attempt: int, capitals: dict[str, tuple[int, int]],
-                  centre: tuple[int, int]) -> list[list[str]]:
-    size = config.map_size
+                  centre: tuple[int, int], size: int) -> list[list[str]]:
     noise = _noise(seed, attempt, size, config.noise_spacing, "biome")
     order = list(capitals)
     grid = [["P"] * size for _ in range(size)]
@@ -191,7 +197,19 @@ def _paint_biomes(config: Config, seed: int, attempt: int, capitals: dict[str, t
             else:
                 name = "mountains"
             grid[y][x] = CODE_FOR[name]
-    # Land touching the sea is coast.
+    return _coast(grid)
+
+
+def _pad(grid: list[list[str]], border: int, fill: str) -> list[list[str]]:
+    width = len(grid) + 2 * border
+    rows = [[fill] * width for _ in range(border)]
+    rows += [[fill] * border + row + [fill] * border for row in grid]
+    return rows + [[fill] * width for _ in range(border)]
+
+
+def _coast(grid: list[list[str]]) -> list[list[str]]:
+    """Land touching the sea is coast."""
+    size = len(grid)
     for y in range(size):
         for x in range(size):
             if grid[y][x] != "S" and any(

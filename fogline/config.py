@@ -53,7 +53,8 @@ def _civs() -> tuple[CivSpec, ...]:
 @dataclass(frozen=True)
 class Config:
     # Map and worldgen (rules 2)
-    map_size: int = 64
+    map_size: int = 72  # 64 tiles of land inside a sea border
+    sea_border: int = 4  # wider than any sight radius, so nobody can see where the map ends
     edge_margin: int = 4
     min_capital_path_cost: int = 40
     capital_ring_radius: int = 24  # capitals sit on a pentagon this far from the map centre

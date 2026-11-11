@@ -25,7 +25,7 @@ Each tick runs in this order:
 
 ## 2. Map and worldgen
 
-- **Size:** 64 × 64 tiles. Sea is impassable in v1.
+- **Size:** 64 × 64 tiles of land inside a 4-tile sea border, so 72 × 72 in all (section 21). Sea is impassable in v1.
 - **Biomes and movement cost** (movement points to enter a tile): plains 1, coast 1, forest 2, desert 2, tundra 2, mountains 3. Crossing a river adds 1, unless there is a road.
 - **Nodes** are placed by worldgen:
 
@@ -257,7 +257,7 @@ Test: the scripted non-trading bot runs out between tick 60 and 80 and loses at 
 | 2 | 480 | 40 timber, 20 stone, 10 metal |
 | 3 | 1,200 | 60 stone, 30 metal, 10 luxury |
 
-  The tree totals 8,080 points (*tuned* in M6, doubled from 4,040). The first estimate (4 points a tick, then about 13 after a library) assumed a civ that stays small; a supplied builder grows faster, and at 4,040 points finished the tree by tick 200 to 250. At 8,080 a supplied builder finishes between tick 311 and 384 (section 21). "Finished" means every tech whose gate the civ can meet; a civ with no coast never gets Harbours.
+  The tree totals 8,080 points (*tuned* in M6, doubled from 4,040). The first estimate (4 points a tick, then about 13 after a library) assumed a civ that stays small; a supplied builder grows faster, and at 4,040 points finished the tree by tick 200 to 250. At 8,080 a supplied builder finishes between tick 311 and 384 on the first 64 × 64 map, and between 329 and 438 inside the sea border (section 21). "Finished" means every tech whose gate the civ can meet; a civ with no coast never gets Harbours.
 - **Catch-up:** a tech already held by any civ this civ has contacted costs 25% fewer points.
 - **Capture:** occupying a settlement with a library or printing house gives the captor one tech it lacks and whose prerequisites it meets, chosen by the combat stream.
 - **After the tree:** scholars produce 1 prestige per research point.
@@ -391,7 +391,7 @@ Each tick there is a 2% draw (events stream) for one world event. The operator c
 | 0 integers and streams | determinism and RNG-isolation tests |
 | 3, 4 production and consumption | conservation: every unit created or destroyed is logged by a named rule |
 | 4.7 run-out schedule | the non-trading bot runs out at tick 60 to 80 and loses at least 15% of its peak population, or 15% of its output, by tick 100 |
-| 14 tree pace | supplied at 2,000 (food, timber, stone, metal; ADR 0004), the builder bot on seed 1 finishes the tree between tick 300 and 400 |
+| 14 tree pace | supplied at 2,000 (food, timber, stone, metal; ADR 0004), the builder bot on seed 1 finishes the tree between tick 300 and 450 |
 | 15.2 stages | supplied at 50,000 (ADR 0004), each scripted civ grows an outpost to town by tick 200 on seed 1 |
 | 6 contact timing | Phase 4: median first contact of scripted scouts over 10 seeds lands in tick 30 to 60 |
 
@@ -407,6 +407,7 @@ Where the rules above leave a choice open, the engine does this (approved 2026-1
 - **Growth window (changes 4.1, approved 2026-11-11):** the 4-tick window counts unit food upkeep as consumption, due whether or not it was paid, as people are counted by what they need. The 40-tick store test still counts people only.
 - **Luxury (approved 2026-11-11):** every settlement with luxury in stock uses 1 every 4 ticks (4.4a's "town" means any settlement), and a use holds the +5 stability for 4 ticks, the tick of use and the 3 after.
 - **Own land in the brief (approved 2026-11-11):** a civ's brief lists every node in its own territory, seen or not. A civ knows the land it claims.
+- **Sea border (changes 2, approved 2026-11-11):** the map is 72 × 72: the 64 × 64 land is drawn as before, then set inside 4 tiles of sea, and land touching that sea becomes coast like any shore. Sight is 2, so no unit sees past the sea to the map's end. The new shore opens the coast-gated tech for some civs, so a supplied builder now runs out of techs at tick 329 to 438 (seeds 1 to 5; 381 to 438 for civs that reach all 21), and the tree-pace window is 300 to 450.
 - **Tool wear** is paid in full or not at all.
 - **Research pool** (ADR 0002): one pool per civ. A tech completes when the pool covers its points and the stock covers its resources, paid at completion. Switching keeps the pool; points with no tech chosen are lost until the tree is finished, when they become prestige.
 - **Build queue:** up to 5 entries per civ, one build at a time per settlement. The cost is paid when a build starts. Building happens at the end of step 7, before the score, and a new building works from the next tick. A repair takes 1 tick; a rebuild takes the normal build ticks.

@@ -135,7 +135,7 @@ def test_a_snapshot_round_trips_to_the_same_hash(tmp_path):
 # The state hash of seed 1 after 200 ticks with builder bots and events on. Any change to the
 # rules, the numbers, the bots or the set of config fields (the config hash lives in the state)
 # changes it; the commit that does so says why.
-GOLDEN_SEED_1_TICK_200 = "009e7d5d552432b2b48532a8db05dc861e21cd3e6e06e7b3fdefecef12d5e304"
+GOLDEN_SEED_1_TICK_200 = "18194ef7a5074d4770b95625dba5d5faa26c9a4233f0358ca7aae98d04e96eeb"
 
 
 def test_seed_1_at_tick_200_matches_the_golden_hash():
@@ -179,12 +179,12 @@ def _supplied(floor: int, ticks: int) -> tuple[dict, dict]:
 
 @pytest.fixture(scope="module")
 def tree_run():
-    return _supplied(2_000, 400)
+    return _supplied(2_000, 450)
 
 
 @pytest.mark.parametrize("civ_id", CIVS)
-def test_a_supplied_builder_finishes_the_tree_between_tick_300_and_400(tree_run, civ_id):
-    assert tree_run[1][civ_id]["tree_done"] in range(300, 401), tree_run[1][civ_id]["techs"]
+def test_a_supplied_builder_finishes_the_tree_between_tick_300_and_450(tree_run, civ_id):
+    assert tree_run[1][civ_id]["tree_done"] in range(300, 451), tree_run[1][civ_id]["techs"]
 
 
 @pytest.mark.parametrize("civ_id", CIVS)
