@@ -202,3 +202,17 @@ def test_the_supply_tops_up_basics_only_and_keeps_the_ledger_whole(tree_run):
 def test_the_supply_is_off_by_default():
     state, _ = run.play(dataclasses.replace(Config(), events_enabled=False), 1, 20)
     assert not any(key.endswith(":supply") for key in state["ledger"])
+
+
+def test_a_run_folder_is_never_written_twice(tmp_path, monkeypatch):
+    folder = tmp_path / "seed1"
+    run.play(Config(), 1, 2, out=folder)
+    before = {path.name: path.read_bytes() for path in folder.iterdir()}
+    with pytest.raises(FileExistsError):
+        run.play(Config(), 1, 3, out=folder)
+    assert {path.name: path.read_bytes() for path in folder.iterdir()} == before
+
+    monkeypatch.setattr(sys, "argv", ["fogline.run", "--ticks", "1", "--out", str(folder)])
+    with pytest.raises(SystemExit) as stopped:
+        run.main()
+    assert stopped.value.code == 2

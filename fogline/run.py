@@ -78,7 +78,10 @@ class Watch:
 
 
 def play(config: Config, seed: int, ticks: int, bot: str = "builder", out: Path | None = None) -> tuple[dict, dict]:
-    """Run a world and return (final state, summary). With out, write the run folder as it goes."""
+    """Run a world and return (final state, summary). With out, write the run folder as it goes.
+    The folder must be new or empty: appending to an old run would mix two runs' logs and snapshots."""
+    if out and out.exists() and any(out.iterdir()):
+        raise FileExistsError(f"run folder {out} is not empty; pick a new --out")
     state = worldgen.generate(config, seed)
     deciders = deciders_for(config, state, bot)
     watch = Watch(config, state)
@@ -131,7 +134,10 @@ def main() -> None:
     parser.add_argument("--out", type=Path, help="write a run folder here, for example runs/seed1")
     args = parser.parse_args()
     config = dataclasses.replace(Config(), events_enabled=not args.no_events, supply_floor=args.supply)
-    state, summary = play(config, args.seed, args.ticks, args.bot, args.out)
+    try:
+        state, summary = play(config, args.seed, args.ticks, args.bot, args.out)
+    except FileExistsError as error:
+        parser.error(str(error))
     _print(summary, state)
 
 
