@@ -44,7 +44,7 @@ def _civs() -> tuple[CivSpec, ...]:
         CivSpec("saltreach", "Saltreach", "coast", ("food", "stone"), ("timber",), "pearls",
                 500, 400, 250, {"food": 400, "timber": 550, "stone": 250, "metal": 150, "luxury": 0}),
         CivSpec("dunerunners", "Dunerunners", "desert", ("metal", "stone"), ("food", "timber"), "spice",
-                250, 800, 400, {"food": 2000, "timber": 300, "stone": 250, "metal": 200, "luxury": 0}),
+                250, 800, 400, {"food": 2000, "timber": 800, "stone": 250, "metal": 200, "luxury": 0}),
         CivSpec("frostmark", "Frostmark", "tundra", ("timber", "metal"), ("stone",), "amber",
                 450, 350, 800, {"food": 400, "timber": 300, "stone": 220, "metal": 150, "luxury": 0}),
     )

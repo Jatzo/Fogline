@@ -38,7 +38,7 @@ Update this at the end of every Claude Code session.
 - [x] M3 economy tick: production with worker allocation, consumption, upkeep, growth, starvation, stability, unrest, secession, Providence and quirk events (75 tests)
 - [x] M4 tech tree, research pool, build queue, placement, contestable claims, growth stages, fishing (104 tests)
 - [x] M5 units, sight and contact, the turn path (briefs, replies, one action table with reason codes), wakes off the event log (ADR 0003), reorder rules, spiral scout bot (128 tests)
-- [ ] M6 part 1 committed: snapshot.py, run.py (headless runner and run folder), builder bot, brief gains held techs and own nodes, no-ruin rule for fields and camps, tuned starting stocks and winter fuel 2; tests for the smoke run, determinism across processes, golden hash (seed 1, tick 200), RNG isolation, fresh-process resume, snapshot round trip, run-out schedule and decline (145 tests, 1 expected failure). Still to do: Dunerunners timber decision, tree pace, outpost to town.
+- [ ] M6 part 1 committed: snapshot.py, run.py (headless runner and run folder), builder bot, brief gains held techs and own nodes, no-ruin rule for fields and camps, tuned starting stocks and winter fuel 2; tests for the smoke run, determinism across processes, golden hash (seed 1, tick 200), RNG isolation, fresh-process resume, snapshot round trip, run-out schedule and decline (146 tests). Dunerunners timber raised to 800 (approved 2026-11-11). Still to do: tree pace, outpost to town.
 - [ ] M7 viewer
 
 ## Found in M3
@@ -56,9 +56,8 @@ Update this at the end of every Claude Code session.
 - Still failing: no civ gets past 13 of 21 techs by tick 400, and no outpost passes 10 people by tick 400.
 
 ## Waiting on a decision
-- Dunerunners timber: 300 (approved) runs out at tick 23 on seed 1; 800 measures 63 on seed 1 (55 to 95 over seeds 1 to 3). The run-out test marks this case as an expected failure until decided.
 - Tree pace: no civ gets past 13 of 21 techs by tick 400 (target: tree done at 300 to 400). Era 2 costs metal and era 3 luxury, both near 0; food-short civs shrink to 18 to 32 people and have few scholars.
 - Outpost to town: no outpost passes 10 people by tick 400 (target: town by 200). 15 per mille on 5 people is one birth every 13 ticks, and any civ-wide food deficit stops growth.
 
 ## Next session
-M6 part 2: settle Dunerunners timber, then options for tree pace and outpost growth, then their tests. Then M7, the viewer.
+M6 part 2: options for tree pace and outpost growth, then their tests. Then M7, the viewer.

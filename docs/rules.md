@@ -105,7 +105,7 @@ Starting stocks are set so that a civ which never trades runs out of its critica
 | Ironhold | 2,000 | 250 | 300 | 200 | food |
 | Verdance | 400 | 300 | 200 | 110 | metal |
 | Saltreach | 400 | 550 | 250 | 150 | timber |
-| Dunerunners | 2,000 | 300 | 250 | 200 | food and timber |
+| Dunerunners | 2,000 | 800 | 250 | 200 | food and timber |
 | Frostmark | 400 | 300 | 220 | 150 | stone |
 
 **Starting settlements:**
@@ -422,5 +422,5 @@ Where the rules above leave a choice open, the engine does this (approved 2026-1
   - No cooldown on `foreign_unit_sighted`; the one call per civ per tick is the limit.
 - **Ruins (changes 4.6, approved 2026-11-11):** farms, pastures, lumber camps and mines never become ruins. While their upkeep is unpaid they run at half output, for as long as it stays unpaid. Every other building still becomes a ruin after 8 ticks unpaid. Without this, a civ whose timber or stone ran out lost every building in the same tick and died out, instead of declining to what its land supports (4.7).
 - **Builder bot:** a civ short of food researches Crop rotation before Writing; every other civ researches Writing first.
-- **Run-out tuning (M6, approved 2026-11-11):** the starting stocks in 4.7 are the measured ones, and winter fuel is 2 per 10. The sums under "Working the sums" are the original estimates; the builder bot grows faster than they assumed, so the stocks are set from runs instead. Measured on seeds 1 to 3, events off: Ironhold food runs out at 54 to 79, Dunerunners food at 54 to 84, Saltreach timber at 55 to 67, Frostmark stone at 63, Verdance metal at 83 to 87. Dunerunners timber at 300 runs out at 23 to 58, still early.
+- **Run-out tuning (M6, approved 2026-11-11):** the starting stocks in 4.7 are the measured ones, and winter fuel is 2 per 10. The sums under "Working the sums" are the original estimates; the builder bot grows faster than they assumed, so the stocks are set from runs instead. Measured on seeds 1 to 3, events off: Ironhold food runs out at 54 to 79, Dunerunners food at 54 to 84, Saltreach timber at 55 to 67, Frostmark stone at 63, Verdance metal at 83 to 87. Dunerunners timber at 800 runs out at 55 to 95 (63 on seed 1; 300 ran out at 23).
 - **Builder bot, M6:** it also puts a mine on a free metal node when metal is falling, and builds no new housing while timber is falling.

@@ -134,7 +134,7 @@ def test_a_snapshot_round_trips_to_the_same_hash(tmp_path):
 
 # The state hash of seed 1 after 200 ticks with builder bots and events on. Any change to the
 # rules, the numbers or the bots changes it; the commit that does so says why.
-GOLDEN_SEED_1_TICK_200 = "c3b2829e1d7e1905a2750c2ee54977e984ce353301b09d39a344436157a36d02"
+GOLDEN_SEED_1_TICK_200 = "bbe4705aa9a3a86d13d8fc5298ad82614d853fbd85636736dbec06f6f4eb9413"
 
 
 def test_seed_1_at_tick_200_matches_the_golden_hash():
@@ -150,8 +150,7 @@ def quiet_seed_1():
 
 RUN_OUT_WINDOW = range(55, 86)  # rules 4.7 says tick 60 to 80; the tuning tests allow 5 ticks either side
 CRITICAL = [("ironhold", "food"), ("verdance", "metal"), ("saltreach", "timber"), ("dunerunners", "food"),
-            pytest.param("dunerunners", "timber", marks=pytest.mark.xfail(
-                strict=True, reason="300 timber runs out at tick 23 on seed 1; 800 measures 63, waiting on a decision")),
+            ("dunerunners", "timber"),
             ("frostmark", "stone")]
 
 
