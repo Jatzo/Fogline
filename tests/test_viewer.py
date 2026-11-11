@@ -67,7 +67,7 @@ def test_a_default_run_keeps_its_manifest_and_adds_supply_and_events(tmp_path):
     manifest = json.loads((tmp_path / "plain" / "manifest.json").read_text(encoding="ascii"))
     assert manifest == {"seed": 1, "ticks": 4, "bot": "builder", "config_hash": Config().config_hash(),
                         "events_enabled": True, "supply": 0, "llm": "bots", "llm_civs": [], "outputs": None,
-                        "model": None}
+                        "model": None, "slice_pair": []}
 
 
 def test_the_api_lists_runs_and_serves_one_whole(client, town_run_dir):

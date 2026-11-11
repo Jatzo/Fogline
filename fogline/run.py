@@ -27,7 +27,33 @@ def deciders_for(config: Config, state: dict, bot: str = "builder") -> dict:
 
 
 LLM_MODES = ("bots", "mock", "replay", "live")
+SLICE_PAIR = ("verdance", "saltreach")  # Phase 3b (operator's choice, rules 21)
 FAILED_TICKS_TO_STOP = {llm.ERROR: 3, llm.TIMEOUT: 5}  # ticks in a row where every live call failed
+
+
+def cost_meter(rows: list[dict], state: dict, start_tick: int, end_tick: int) -> dict[str, dict]:
+    """Per civ: calls, tokens and cost before and after its first contact, each also per 100 ticks
+    of that stretch, with the call counts behind every figure (PLAN section 10, Phase 3b)."""
+    meter = {}
+    for civ_id in sorted({r["civ"] for r in rows}):
+        met = state["civs"][civ_id]["met"]
+        contact = min(met.values()) if met else end_tick
+        spans = {"before_contact": (start_tick, contact), "after_contact": (contact, end_tick)}
+        meter[civ_id] = {"first_contact": min(met.values()) if met else None}
+        for name, (low, high) in spans.items():
+            mine = [r for r in rows if r["civ"] == civ_id and low <= r["tick"] < high]
+            spent = {"ticks": high - low, "calls": len(mine), "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}
+            for row in mine:
+                usage = row.get("usage") or {}
+                spent["input_tokens"] += usage.get("input_tokens", 0) + usage.get("cache_creation_input_tokens", 0)                     + usage.get("cache_read_input_tokens", 0)
+                spent["output_tokens"] += usage.get("output_tokens", 0)
+                spent["cost_usd"] += usage.get("total_cost_usd", 0.0)
+            if spent["ticks"] > 0:
+                spent["per_100_ticks"] = {"calls": round(spent["calls"] * 100 / spent["ticks"], 1),
+                                          "cost_usd": round(spent["cost_usd"] * 100 / spent["ticks"], 4)}
+            spent["cost_usd"] = round(spent["cost_usd"], 4)
+            meter[civ_id][name] = spent
+    return meter
 
 
 class Failing:
@@ -154,7 +180,7 @@ def play(config: Config, seed: int, ticks: int, bot: str = "builder", out: Path 
                     "events_enabled": config.events_enabled, "supply": config.supply_floor, "llm": mode,
                     "llm_civs": sorted(llm_civs or state["civs"]) if mode != "bots" else [],
                     "outputs": str(outputs) if outputs else None,
-                    "model": llm.MODEL if mode == "live" else None}
+                    "model": llm.MODEL if mode == "live" else None, "slice_pair": list(config.slice_pair)}
         (out / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="ascii")
         snapshot.save(state, out / "snap-00000.json.gz")
     failing = Failing() if mode == "live" else None
@@ -177,6 +203,8 @@ def play(config: Config, seed: int, ticks: int, bot: str = "builder", out: Path 
             summary[civ_id]["calls"] = calls
         for civ_id, spent in recorder.tokens().items():
             summary[civ_id]["tokens"] = spent
+        for civ_id, metered in cost_meter(recorder.rows, state, 0, state["tick"]).items():
+            summary[civ_id]["cost"] = metered
     if out:
         (out / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="ascii")
     return state, summary
@@ -214,8 +242,14 @@ def main() -> None:
                              "live: claude -p")
     parser.add_argument("--llm-civs", help="comma-separated civs the --llm mode applies to (default: all)")
     parser.add_argument("--outputs", type=Path, help="outputs.jsonl to replay")
+    parser.add_argument("--slice", action="store_true",
+                        help="Phase 3b slice: Verdance and Saltreach start as neighbours and meet at once; "
+                             "the other civs trade as scripted bots")
     args = parser.parse_args()
-    config = dataclasses.replace(Config(), events_enabled=not args.no_events, supply_floor=args.supply)
+    config = dataclasses.replace(Config(), events_enabled=not args.no_events, supply_floor=args.supply,
+                                 slice_pair=SLICE_PAIR if args.slice else ())
+    if args.slice and args.bot == "builder":
+        args.bot = "trader"  # the slice's scripted neighbours trade
     llm_civs = [c.strip() for c in args.llm_civs.split(",")] if args.llm_civs else None
     try:
         state, summary = play(config, args.seed, args.ticks, args.bot, args.out, mode=args.llm,

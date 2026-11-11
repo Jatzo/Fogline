@@ -120,6 +120,8 @@ def _build(config: Config, seed: int, attempt: int) -> dict:
     # Capitals: Frostmark takes the north slot; the others are shuffled into the rest.
     others = [c for c in civ_ids if c != "frostmark"]
     _draw(seed, attempt, "slots").shuffle(others)
+    if config.slice_pair:  # the slice pair takes slots 1 and 2, neighbours on the ring (the draw still runs)
+        others = list(config.slice_pair) + [c for c in others if c not in config.slice_pair]
     slot_civs = ["frostmark", *others]
     jitter = _draw(seed, attempt, "jitter")
     capitals: dict[str, tuple[int, int]] = {}
@@ -170,9 +172,35 @@ def _build(config: Config, seed: int, attempt: int) -> dict:
         _home_nodes(config, state, seed, attempt, civ, capitals[civ])
     for civ in civ_ids:
         _found_civ(config, state, seed, attempt, civ, capitals)
+    if config.slice_pair:
+        _meet_scouts(state, config.slice_pair, capitals)
     # After founding, so no outpost's claim can swallow a node meant to belong to nobody.
     _contestable_nodes(config, state, seed, attempt, capitals)
     return state
+
+
+def _land_near(state: dict, target: tuple[int, int], taken: set[tuple[int, int]]) -> tuple[int, int]:
+    """The land tile nearest target (Chebyshev rings, then y and x), not in taken."""
+    size = state["map"]["size"]
+    for radius in range(size):
+        ring = sorted((y, x) for y in range(target[1] - radius, target[1] + radius + 1)
+                      for x in range(target[0] - radius, target[0] + radius + 1)
+                      if max(abs(x - target[0]), abs(y - target[1])) == radius and 0 <= x < size and 0 <= y < size)
+        for y, x in ring:
+            if layout.is_land(state["map"], x, y) and (x, y) not in taken:
+                return x, y
+    raise _Reroll("no land for the slice scouts")
+
+
+def _meet_scouts(state: dict, pair: tuple[str, ...], capitals: dict[str, tuple[int, int]]) -> None:
+    """Set the slice pair's starting scouts down side by side halfway between their capitals, in
+    each other's sight, so the two civs meet in the first ticks whatever their rulers do."""
+    a, b = pair
+    middle = ((capitals[a][0] + capitals[b][0]) // 2, (capitals[a][1] + capitals[b][1]) // 2)
+    first = _land_near(state, middle, set())
+    second = _land_near(state, first, {first})
+    state["units"][f"{a}-u0"]["tile"] = tile_key(*first)
+    state["units"][f"{b}-u0"]["tile"] = tile_key(*second)
 
 
 def _paint_biomes(config: Config, seed: int, attempt: int, capitals: dict[str, tuple[int, int]],

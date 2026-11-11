@@ -832,6 +832,11 @@ function orderText(action) {
   return args.length ? `${kind}: ${args.join(", ")}` : String(kind);
 }
 
+function goodsText(goods) {
+  const parts = Object.entries(goods || {}).map(([good, n]) => `${n} ${good}`);
+  return parts.length ? parts.join(", ") : "nothing";
+}
+
 async function loadTurn() {
   if (!run || timer) return;  // while the time-lapse plays, wait for it to stop
   const mine = ++asking;
@@ -866,6 +871,12 @@ function renderTurn(data) {
     ["Messages", seen && seen.messages && seen.messages.length
       ? seen.messages.slice(-3).map((m) => `${m.from}, sent tick ${m.sent}${m.hearsay ? " (hearsay: names a people it has not met)" : ""}`).join("\n")
       : "none"],
+    ["Offers", seen && seen.offers && seen.offers.length
+      ? seen.offers.map((o) => `${o.id} ${o.from} to ${o.to}: ${goodsText(o.give)} for ${goodsText(o.get)} (${o.status}, ends tick ${o.expires})`).join("\n")
+      : "none"],
+    ["Known peoples", seen && seen.dossiers && seen.dossiers.length
+      ? seen.dossiers.map((d) => `${d.name}: ${d.standing}, met tick ${d.met_tick}, ${d.offers_received} offers in, ${d.offers_made} out, ${d.deliveries} deliveries, ${d.messages} messages`).join("\n")
+      : "none yet"],
   ];
   for (const [k, v] of rows) {
     const dt = document.createElement("dt");

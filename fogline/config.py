@@ -56,6 +56,7 @@ class Config:
     map_size: int = 76  # 64 tiles of land inside a sea border
     sea_border: int = 6  # the largest sight (fortress, 4) plus the order margin (2): nobody sees or probes the edge
     edge_margin: int = 4
+    slice_pair: tuple[str, ...] = ()  # the Phase 3b slice: these two start as neighbours and meet at once
     min_capital_path_cost: int = 40
     capital_ring_radius: int = 24  # capitals sit on a pentagon this far from the map centre
     capital_jitter: int = 2
