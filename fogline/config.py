@@ -186,7 +186,6 @@ class Config:
     library_scholar_rate: int = 1500
     printing_rate: int = 1500
     catch_up_discount: int = 250
-    tech_options_shown: int = 3
     era_resources: dict[str, dict[str, int]] = field(default_factory=lambda: {
         "1": {"timber": 20}, "2": {"timber": 40, "stone": 20, "metal": 10},
         "3": {"stone": 60, "metal": 30, "luxury": 10}})
@@ -245,6 +244,9 @@ class Config:
     max_actions_per_turn: int = 12
     invalid_turns_before_skip: int = 3
     max_concurrent_calls: int = 5  # rulers called at once in a tick (rules 16)
+
+    # Reputation (rules 11)
+    reputation_drift_every: int = 4
 
     # Memory (PLAN section 8)
     journal_entries: int = 16

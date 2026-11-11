@@ -192,6 +192,16 @@ def disband_unit(config: Config, state: dict, civ_id: str, unit: str, log: Log =
     return None
 
 
+def met_civ(config: Config, state: dict, civ_id: str, name: object) -> str | None:
+    """The id of the met civ a ruler named (by its name, any case), or None. A civ it hasn't met
+    answers exactly like a made-up name, so a guess can't confirm that a civ exists."""
+    if not isinstance(name, str):
+        return None
+    wanted = name.strip().lower()
+    return next((other for other in sorted(state["civs"][civ_id]["met"])
+                 if config.civ(other).name.lower() == wanted), None)
+
+
 def set_note(config: Config, state: dict, civ_id: str, text: str, log: Log = None) -> Reason | None:
     """Add a line to the civ's own journal. Always tagged as its own inference (memory.OWN)."""
     try:

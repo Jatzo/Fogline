@@ -102,7 +102,7 @@ def make_builder(config: Config, food_short: bool = False) -> Decider:
             return True
 
         # Research never stops: Writing first, then Crop rotation, then the cheapest era in tree order.
-        options = brief["research"]["available"]
+        options = [offer["tech"] for offer in brief["research"]["available"]]
         if not brief["research"]["tech"] and options:
             pick = next((t for t in first if t in options), None)
             pick = pick or min(options, key=lambda t: (techs.TECHS[t].era, TREE_ORDER.index(t)))

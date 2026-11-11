@@ -8,7 +8,7 @@ unlocked buildings in config.buildings.
 from dataclasses import dataclass
 
 from fogline.config import Config
-from fogline.intmath import per_mille
+from fogline.intmath import PER_MILLE, per_mille
 from fogline.layout import biome_name
 from fogline.paths import is_river
 from fogline.state import parse_tile_key
@@ -46,6 +46,28 @@ TECHS: dict[str, Tech] = {
 }
 
 
+# What a ruler is told about a tech it could study next (rules 14): in-fiction, one line each.
+HINTS: dict[str, str] = {
+    "crop_rotation": "Resting a field one year in three keeps it from tiring.",
+    "herding": "Animals kept on open grass feed people where crops won't grow.",
+    "woodworking": "Better joints and tools get more from every felled tree.",
+    "quarrying": "Stone cut from a hillside, not just gathered from the ground.",
+    "storage": "Sealed granaries that keep a good harvest from rotting.",
+    "pathfinding": "Scouts who read the land travel further and see more.",
+    "writing": "Marks that keep what scholars learn after they are gone.",
+    "iron_working": "Ore from the ground turned into tools that last.",
+    "roads": "Packed ways between settlements that speed every journey.",
+    "carts": "Wheels that let one caravan carry twice the load.",
+    "masonry": "Cut stone laid true, for buildings that outlast their builders.",
+    "markets": "A fixed place and fixed rules for exchanging goods.",
+    "drill": "People trained to stand and move together.",
+    "irrigation": "Water led from the river to fields that would otherwise be dry.",
+    "harbours": "Sheltered water where boats can tie up and fish come in.",
+    "fortification": "Walls and towers that make a settlement hard to take.",
+    "printing": "Words set once and copied many times.",
+}
+
+
 def own_tiles(state: dict, civ_id: str) -> list[str]:
     return sorted(tile for tile, sid in state["territory"].items() if state["settlements"][sid]["civ"] == civ_id)
 
@@ -74,6 +96,21 @@ def available(state: dict, civ_id: str) -> list[str]:
     held = state["civs"][civ_id]["techs"]
     return [tech_id for tech_id, tech in TECHS.items()
             if tech_id not in held and prereqs_met(held, tech_id) and gate_met(state, civ_id, tech.gate)]
+
+
+def offered(state: dict, civ_id: str) -> list[dict]:
+    """Every tech a ruler could study now, in tree order, with a hint (rules 21 drops the cap of 3).
+    available() already leaves out any tech whose gate the civ's own land doesn't meet, so a tech
+    needing terrain or a node the civ has never seen is never offered."""
+    return [{"tech": t, "hint": HINTS[t]} for t in available(state, civ_id)]
+
+
+def points(config: Config, state: dict, civ_id: str, tech_id: str) -> int:
+    """Research points for one tech, 25% fewer if a civ this one has met already holds it."""
+    full, _ = cost(config, tech_id)
+    if any(tech_id in state["civs"][other]["techs"] for other in state["civs"][civ_id]["met"]):
+        return per_mille(full, PER_MILLE - config.catch_up_discount)
+    return full
 
 
 def cost(config: Config, tech_id: str) -> tuple[int, dict[str, int]]:

@@ -10,7 +10,7 @@ import re
 from collections.abc import Mapping
 from typing import Any
 
-from fogline import memory, rules, sight, techs, units
+from fogline import memory, reputation, rules, sight, techs, units
 from fogline.config import Config
 from fogline.intmath import PER_MILLE, floor_div
 from fogline.state import canonical_json, parse_tile_key, tile_key
@@ -36,7 +36,7 @@ FIELDS: Mapping[str, Any] = {
     "techs": [str],
     "allocation": {str: int},
     "reorders": [{"stock": str, "below": int, "workers": int}],
-    "research": {"tech": str, "points": int, "available": [str]},
+    "research": {"tech": str, "points": int, "available": [{"tech": str, "hint": str}]},
     "build_queue": [{"settlement": str, "building": str, "mode": str, "tile": str, "started": bool,
                      "ticks_left": int}],
     "settlements": [{"id": str, "name": str, "tile": str, "stage": str, "pop": int, "buildings": [str]}],
@@ -46,7 +46,7 @@ FIELDS: Mapping[str, Any] = {
     "nodes": [{"id": str, "kind": str, "tile": str, "settlement": str, "left": int, "worked": bool}],
     "in_view": [{"civ": str, "kind": str, "tile": str}],
     "foreign_sites": [{"civ": str, "tile": str}],
-    "met": [str],
+    "met": [{"name": str, "standing": str}],
     "events": [_EVENT],
     "journal": [{"tick": int, "text": str, "source": str}],
     "strategy": str,
@@ -54,6 +54,7 @@ FIELDS: Mapping[str, Any] = {
 }
 
 _TILE = re.compile(r"^-?\d+,-?\d+$")
+_PUNCTUATION = "()[]{}<>.,;:!?'\"`"
 
 # Shown only once the civ has met someone. Before that even an empty list, or a key named
 # foreign_sites, would tell a ruler that other peoples exist.
@@ -105,22 +106,30 @@ def civ_name(config: Config, civ_id: str) -> str:
 
 def _detail(config: Config, state: dict, civ_id: str, detail: str) -> str | None:
     """Event text as the civ may read it: tiles made relative, its own ids kept, a met civ's
-    ids replaced by that civ's name. None if the text names a civ it hasn't met."""
+    ids replaced by that civ's name. None if the text names a civ it hasn't met. Punctuation
+    around a word, as in "(ironhold-u3)", is set aside before matching and put back after."""
     words = []
-    for word in detail.split(" "):
-        owner = next((c for c in state["civs"] if word == c or word.startswith(c + "-")), None)
-        if _TILE.match(word):
-            word = relative(state, civ_id, word)
+    for raw in detail.split(" "):
+        core = raw.strip(_PUNCTUATION)
+        before, after = raw[:raw.index(core)] if core else raw, raw[raw.index(core) + len(core):] if core else ""
+        lowered = core.lower()
+        owner = next((c for c in state["civs"] if lowered == c or lowered.startswith(c + "-")), None)
+        if _TILE.match(core):
+            core = relative(state, civ_id, core)
         elif owner and owner != civ_id:
             if owner not in state["civs"][civ_id]["met"]:
                 return None
-            word = civ_name(config, owner)
-        words.append(word)
+            core = civ_name(config, owner)
+        words.append(before + core + after)
     return " ".join(words)
 
 
-def _trigger(config: Config, state: dict, civ_id: str, raised: dict) -> dict:
-    detail = _detail(config, state, civ_id, raised["detail"]) or ""
+def _trigger(config: Config, state: dict, civ_id: str, raised: dict) -> dict | None:
+    """A trigger as the civ sees it, or None if its detail names a civ it hasn't met: the trigger's
+    name alone (foreign_unit_sighted, say) would tell it others exist."""
+    detail = _detail(config, state, civ_id, raised["detail"])
+    if detail is None:
+        return None
     return {"trigger": str(raised["trigger"]), "detail": detail}
 
 
@@ -153,7 +162,7 @@ def observe(config: Config, state: dict, civ_id: str, raised: list[dict] | None 
     observation = {
         "tick": now,
         "season": rules.season(now),
-        "triggers": [_trigger(config, state, civ_id, r) for r in (raised or [])],
+        "triggers": [seen for r in (raised or []) if (seen := _trigger(config, state, civ_id, r))],
         "rejections": [dict(r) for r in civ["turn"]["rejections"]],
         "stocks": dict(civ["stocks"]),
         "stock_changes": {res: amount - seen_stocks.get(res, amount) for res, amount in civ["stocks"].items()},
@@ -164,7 +173,7 @@ def observe(config: Config, state: dict, civ_id: str, raised: list[dict] | None 
         "allocation": dict(civ["allocation"]),
         "reorders": [dict(r) for r in civ["reorders"]],
         "research": {"tech": civ["research"]["tech"], "points": floor_div(civ["research"]["points_milli"], PER_MILLE),
-                     "available": techs.available(state, civ_id)},
+                     "available": techs.offered(state, civ_id)},
         "build_queue": [{"settlement": e["settlement"], "building": e["building"], "mode": e["mode"],
                          "tile": relative(state, civ_id, e["tile"]), "started": e["started"],
                          "ticks_left": e["ticks_left"]} for e in civ["build_queue"]],
@@ -190,7 +199,8 @@ def observe(config: Config, state: dict, civ_id: str, raised: list[dict] | None 
         "foreign_sites": [{"civ": civ_name(config, state["settlements"][sid]["civ"]),
                            "tile": relative(state, civ_id, site["tile"])}
                           for sid, site in sorted(civ["sites"].items()) if state["settlements"][sid]["civ"] in met],
-        "met": sorted(civ_name(config, other) for other in met),
+        "met": [{"name": civ_name(config, other), "standing": reputation.word(state["reputation"][civ_id][other])}
+                for other in sorted(met)],
         "events": _events(config, state, civ_id),
         "journal": journal,
         "strategy": strategy,

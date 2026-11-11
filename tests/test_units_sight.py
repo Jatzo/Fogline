@@ -111,7 +111,7 @@ def test_contact_is_logged_both_ways_and_wakes_both_civs(start):
     engine.tick(CONFIG, state, deciders={"ironhold": record("ironhold"), "verdance": record("verdance")})
     assert {"trigger": "contact", "detail": "Verdance"} in seen["ironhold"]["triggers"]
     assert {"trigger": "contact", "detail": "Ironhold"} in seen["verdance"]["triggers"]
-    assert seen["verdance"]["met"] == ["Ironhold"]
+    assert seen["verdance"]["met"] == [{"name": "Ironhold", "standing": "unknown"}]  # a word, never a number
     assert seen["ironhold"]["in_view"] == [] and seen["ironhold"]["foreign_sites"]
 
 

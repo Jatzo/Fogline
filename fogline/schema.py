@@ -117,15 +117,17 @@ def _arg_schema(arg: Arg) -> dict:
     raise ValueError(f"no schema for argument kind {arg.kind!r}")
 
 
-def json_schema(config: Config) -> dict:
-    """The JSON Schema of a reply, built from the action table and the end_turn limits."""
+def json_schema(config: Config, met: bool = False) -> dict:
+    """The JSON Schema of a reply, built from the action table and the end_turn limits. Before a
+    civ has met anyone it lists only the wake triggers a civ alone can use."""
     variants = []
     for kind, spec in sorted(action_table(config).items()):
         properties = {"kind": {"const": kind}} | {name: _arg_schema(arg) for name, arg in spec.args.items()}
         required = ["kind"] + [name for name, arg in spec.args.items() if arg.required]
         variants.append({"type": "object", "properties": properties, "required": required,
                          "additionalProperties": False})
-    from fogline.turns import OWN_TRIGGERS  # turns imports this module, so this import waits until called
+    from fogline.turns import CONTACT_TRIGGERS, OWN_TRIGGERS  # turns imports this module, so this waits
+    triggers = OWN_TRIGGERS + (CONTACT_TRIGGERS if met else ())
     reorder = {"type": "object", "additionalProperties": False, "required": ["stock", "below", "workers"],
                "properties": {"stock": {"type": "string", "enum": sorted(RESOURCES)},
                               "below": {"type": "integer", "minimum": 0},
@@ -133,7 +135,7 @@ def json_schema(config: Config) -> dict:
     end_turn = {"type": "object", "additionalProperties": False, "required": ["next_wake"], "properties": {
         "next_wake": {"type": "object", "additionalProperties": False, "required": ["ticks"], "properties": {
             "ticks": {"type": "integer", "minimum": 1, "maximum": config.max_wake_ticks},
-            "triggers": {"type": "array", "items": {"type": "string", "enum": sorted(t.value for t in OWN_TRIGGERS)}}}},
+            "triggers": {"type": "array", "items": {"type": "string", "enum": sorted(t.value for t in triggers)}}}},
         "reorders": {"type": "array", "maxItems": config.max_reorders, "items": reorder}}}
     return {"type": "object", "additionalProperties": False, "properties": {
         "actions": {"type": "array", "maxItems": config.max_actions_per_turn, "items": {"oneOf": variants}},

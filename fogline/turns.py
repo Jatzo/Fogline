@@ -46,6 +46,9 @@ ALWAYS_ON = frozenset({Trigger.ATTACK, Trigger.CONTACT, Trigger.TREATY_PROPOSED,
 # still accepted if sent, and the always-on ones fire regardless.
 OWN_TRIGGERS = (Trigger.BUILD_DONE, Trigger.STOCK_BELOW_THRESHOLD, Trigger.TECH_UNLOCKED, Trigger.UNIT_ARRIVED,
                 Trigger.UNIT_IDLE)
+# Added once a civ has met someone (rules 21, Phase 3). contact stays out: it is always on.
+CONTACT_TRIGGERS = (Trigger.FOREIGN_UNIT_SIGHTED, Trigger.MESSAGE_RECEIVED, Trigger.OFFER_RECEIVED,
+                    Trigger.OFFER_EXPIRING)
 
 # Event kind in state["events"] -> the trigger it raises for that event's civ. The only place
 # this mapping lives; Phases 3 and 5 add rows here and wake nobody anywhere else.

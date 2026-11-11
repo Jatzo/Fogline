@@ -9,7 +9,7 @@ ledger under the WORLDGEN rule.
 
 from math import isqrt
 
-from fogline import layout, ledger, memory, rng, sight, units
+from fogline import layout, ledger, memory, reputation, rng, sight, units
 from fogline.config import Config
 from fogline.paths import CODE_FOR, path_costs
 from fogline.state import tile_key
@@ -156,6 +156,7 @@ def _build(config: Config, seed: int, attempt: int) -> dict:
         "world": {"harsh_winter_tick": -1},
         "events": [],
         "units": {},
+        "reputation": reputation.initial(config, civ_ids),
     }
 
     for civ in civ_ids:

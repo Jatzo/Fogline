@@ -9,7 +9,7 @@ draw comes from a fresh rng stream.
 from collections.abc import Mapping
 from typing import Any
 
-from fogline import construction, ledger, rng, rules, sight, techs, turns, units, worldgen
+from fogline import construction, ledger, reputation, rng, rules, sight, techs, turns, units, worldgen
 from fogline.config import BASICS, RESOURCES, Config
 from fogline.intmath import PER_MILLE, ceil_div, floor_div, per_mille
 from fogline.layout import EXTRACTION, biome_name, is_land, node_tiles, occupied_tiles
@@ -240,7 +240,8 @@ def _research(config: Config, state: dict, now: int, log: Log) -> None:
             else:
                 research["points_milli"] = 0
             continue
-        points, price = techs.cost(config, tech_id)
+        _, price = techs.cost(config, tech_id)
+        points = techs.points(config, state, civ_id, tech_id)  # the catch-up discount (rules 14)
         if research["points_milli"] < points * PER_MILLE:
             continue
         if any(civ["stocks"][res] < amount for res, amount in price.items()):
@@ -378,6 +379,7 @@ def _events(config: Config, state: dict, now: int, log: Log, scratch: dict) -> N
         civ["target_mods"] = [m for m in civ["target_mods"] if m["until"] > now]
     for settlement in state["settlements"].values():
         settlement["modifiers"] = [m for m in settlement["modifiers"] if m["until"] > now]
+    reputation.drift(config, state, now)
     if state["world"]["harsh_winter_tick"] == now:
         state["world"]["harsh_winter_tick"] = -1
 

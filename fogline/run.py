@@ -74,7 +74,7 @@ def rulers(config: Config, state: dict, bot: str, mode: str, llm_civs: list[str]
             missing = [c for c in chosen if not prompts.has_culture(c)]
             if missing:
                 raise ValueError(f"no culture prompt for {', '.join(missing)}; choose civs with --llm-civs")
-            inner: llm.Adapter = llm.LiveAdapter({c: prompts.system_prompt(config, c) for c in chosen})
+            inner: llm.Adapter = llm.LiveAdapter(lambda civ, met: prompts.system_prompt(config, civ, met))
         else:
             inner = llm.MockAdapter({c: mock_ruler.make(config, c, state["seed"]) for c in chosen})
         recorder = llm.Recorder(inner, out / "outputs.jsonl" if out else None)

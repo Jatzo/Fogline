@@ -65,7 +65,7 @@ def test_nothing_a_ruler_reads_names_a_civ_it_has_not_met(game):
         if seen is None:
             continue
         message = prompts.user_message(seen if record["step"] == "decide" else {"step": "reflect", "observation": seen})
-        met_names = set(seen.get("met", []))
+        met_names = {m["name"] for m in seen.get("met", [])}
         unmet = [c.civ_id for c in CONFIG.civs if c.civ_id != record["civ"] and c.name not in met_names]
         assert _named(message, unmet) == [], (record["tick"], record["civ"])
         if not met_names:

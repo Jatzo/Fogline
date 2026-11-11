@@ -119,5 +119,8 @@ Decisions: caravan 20 timber and 10 food, 2 people, 1 food upkeep, move 4, 1 tic
 
 Tick order: step 1 queues couriers (delivery tick fixed at dispatch), escrows offers and acceptances; production, research; a new trade step expires offers and forms legs; movement advances legs and delivers due couriers; leg delivery (fee, blueprints, reputation, tracks) before sight; reputation drifts in events every 4 ticks. New ledger rules: escrow, escrow return, trade delivery, market fee, blueprint mint, blueprint destroyed; escrow owner `offer:<id>`, transit owner the leg unit.
 
+## Phase 3 milestones
+- [x] M15 reputation per ordered pair with drift; met civs shown as a word; schema and system prompt widen after contact (live prompts built per call from the observation); `actions.met_civ` answers an unmet civ like a made-up name; triggers naming an unmet civ dropped; ids matched through punctuation; tech catch-up 25% for a tech a met civ holds; every offered tech has a hint. The cap of 3 offered techs was dropped (operator's call): it broke 8 tuned tests by narrowing the builder's choices. 272 tests.
+
 ## Next session
-M15: the contact surface. Before each live experiment, check a tiny call's input tokens again (ADR 0007). Before each live experiment, check a tiny call's input tokens again (ADR 0007). To watch the mock run: `python -m fogline.viewer --runs runs`, pick p2-mock.
+M16: messages, couriers, hardening and foreign claims. Before each live experiment, check a tiny call's input tokens again (ADR 0007). Before each live experiment, check a tiny call's input tokens again (ADR 0007). To watch the mock run: `python -m fogline.viewer --runs runs`, pick p2-mock.
