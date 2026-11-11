@@ -17,7 +17,8 @@ A ruler's turn goes through one adapter interface: `call((tick, civ, step), obse
 - The call took 12.0 seconds, the output envelope was well-formed, and `modelUsage` reported `claude-haiku-5-5`. stderr carried an `unrecognized_model` warning that didn't stop the call.
 - The reported cost was $0.072. Of 1,222 output tokens, 1,024 were thinking: extended thinking is on by default. At 650 to 900 ruler calls per run (PLAN section 10), that is roughly $47 to $65 of notional cost per run before diplomacy, on the plan's usage limits rather than a bill.
 - The reply was well-formed JSON, but it put `reorders` at the top level instead of inside `end_turn`, so `validate_reply` refused it as `malformed`. The prompt will need to be explicit about the shape (M13).
-- The call reported 5,985 input tokens for about 6,400 characters of prompt and observation, which should be roughly 1,600 to 2,000 tokens. **Something else reaches the model. I have not yet found out what.** It may be Claude Code's own framing, or the operator's user-level instructions. The output envelope has `system_prompt_detail` and `input_attachments_detail` fields that should say. Until that is settled, a live ruler's context is not proven to be only the prompt and its observation.
+- The call reported 5,985 input tokens for about 6,400 characters of prompt and observation, which should be roughly 1,600 to 2,000 tokens.
+- **A second call found the source.** It used a 7-word system prompt and the message "hi", and still reported 2,862 input tokens: about 2,850 tokens of fixed overhead on every call. Its `system_prompt_detail` says `"user_context": "built"`, with `"context_hooks"` as the slowest producer. So `claude -p` builds the operator's user-level context into the call even with `--system-prompt`: user instructions, and the output of user hooks such as SessionStart. That overhead is about 2,850 of the 5,985 tokens, and the rest is the prompt and observation.
 
 ## Not chosen
 - **The Anthropic SDK with an API key.** It would be faster, give exact token counts and allow thinking to be switched off, but it needs a paid key, against the project decision.
@@ -25,6 +26,6 @@ A ruler's turn goes through one adapter interface: `call((tick, civ, step), obse
 - **Replaying with live timeouts.** Truer to a re-run, but not reproducible.
 
 ## What I would not trust
-- **Clean context:** see the input-token gap above. It has to be resolved before any live ruler plays a civ that could meet another (Phase 3).
+- **Clean context:** a live ruler currently also receives the operator's user-level context, about 2,850 tokens, which is not part of the experiment and may hold anything. It has to be stripped, and then shown stripped by a call whose input tokens match the prompt alone, before any live ruler plays a civ that could meet another (Phase 3). The options still to test: a separate Claude config folder holding only the login, `--setting-sources` to skip user settings and hooks, or the SDK with an API key if neither works.
 - **Cost per call:** one call is not a measurement. Phase 3 records cost per 100 ticks with and without contact.
 - **The `claude -p` interface:** a CLI update could change the flags, the output envelope or the default model handling. The live adapter treats anything unexpected as an `error` outcome rather than guessing.
