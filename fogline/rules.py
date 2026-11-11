@@ -164,3 +164,31 @@ def stage_for(config: Config, pop: int, building_types: Iterable[str]) -> str:
             break
         best = stage
     return best
+
+
+def reorder_shift(pop: int, workers: Mapping[str, int], slots: Mapping[str, int], stocks: Mapping[str, int],
+                  reorders: list[Mapping], budget: list[int]) -> tuple[dict[str, int], list[int]]:
+    """Apply reorder rules to one settlement: "if stock X is below N, move up to M workers to X".
+
+    Idle people move first, then one at a time from the busiest other line. budget holds what
+    each rule may still move this tick across the whole civ; the updated budget is returned.
+    Moves workers only, never goods (rules 16).
+    """
+    workers = dict(workers)
+    budget = list(budget)
+    for index, rule in enumerate(reorders):
+        line = rule["stock"]
+        if stocks[line] >= rule["below"]:
+            continue
+        room = slots.get(line, 0) - workers[line]
+        while budget[index] > 0 and room > 0:
+            if pop - sum(workers.values()) <= 0:
+                donors = [other for other in LINES if other != line and workers[other] > 0]
+                if not donors:
+                    break
+                donor = max(donors, key=lambda other: (workers[other], -LINES.index(other)))
+                workers[donor] -= 1
+            workers[line] += 1
+            room -= 1
+            budget[index] -= 1
+    return workers, budget

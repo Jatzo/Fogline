@@ -159,15 +159,23 @@ class Config:
     secession_ticks: int = 4
     secession_idle_ticks: int = 4
 
-    # Units (rules 6)
-    scout_move: int = 4
+    # Units (rules 6). Caravans arrive with trade in Phase 3. "army" units share the scaled upkeep;
+    # "building" is a building the training settlement must have.
+    units: dict[str, dict] = field(default_factory=lambda: {
+        "scout": {"cost": {"food": 15, "timber": 5}, "pop": 1, "upkeep": 1, "move": 4, "sight": 2,
+                  "strength": 0, "tech": "", "building": "", "train_ticks": 1, "army": False},
+        "levy": {"cost": {"food": 10, "metal": 5}, "pop": 5, "upkeep": 1, "move": 4, "sight": 2,
+                 "strength": 2, "tech": "", "building": "", "train_ticks": 1, "army": True},
+        "soldiers": {"cost": {"food": 20, "metal": 10, "timber": 5}, "pop": 5, "upkeep": 2, "move": 4, "sight": 2,
+                     "strength": 5, "tech": "drill", "building": "barracks", "train_ticks": 2, "army": True},
+    })
     scout_move_pathfinding: int = 6
-    scout_sight: int = 2
     scout_sight_pathfinding: int = 3
-    unit_sight: int = 2
     settlement_sight: int = 2
     fortress_sight: int = 4
     army_upkeep_step: int = 250
+    army_upkeep_every: int = 10
+    order_margin: int = 2  # a move target must be this close to ground the civ has seen
 
     # Tech (rules 14)
     tech_speed: int = 1000
@@ -226,6 +234,8 @@ class Config:
 
     # Wake rules (rules 16)
     heartbeat_ticks: int = 6
+    max_wake_ticks: int = 8
+    max_reorders: int = 3
     max_actions_per_turn: int = 12
     invalid_turns_before_skip: int = 3
 

@@ -31,21 +31,30 @@ def _assert_conserved(state):
         assert ledger.net_change(totals, settlement_id, "pop") == settlement["pop"], settlement_id
     for node_id, node in state["nodes"].items():
         assert ledger.net_change(totals, node_id, "node") == node["node"], node_id
+    for unit_id, unit in state["units"].items():
+        assert ledger.net_change(totals, unit_id, "pop") == unit["pop"], unit_id
+    # An owner that no longer exists (a disbanded unit) must hold nothing.
+    live = set(state["civs"]) | set(state["settlements"]) | set(state["nodes"]) | set(state["units"])
+    gone = {key.split(":")[0] for key in totals} - live
+    for owner in gone:
+        assert ledger.net_change(totals, owner, "pop") == 0, owner
 
 
 @pytest.mark.parametrize("seed", [1, 2, 3])
 def test_every_stock_is_explained_by_the_ledger_over_200_ticks(seed):
     state = worldgen.generate(CONFIG, seed)
+    before = dict(state["ledger"])
     log = []
     engine.run(CONFIG, state, 200, log)
     _assert_conserved(state)
-    # The per-tick log and the running totals agree.
+    # The per-tick log explains exactly what the running totals gained during the run.
     summed = {}
     for entry in log:
         key = f"{entry['owner']}:{entry['stock']}:{entry['rule']}"
         summed[key] = summed.get(key, 0) + entry["delta"]
-    ticked = {key: value for key, value in state["ledger"].items() if not key.endswith(":worldgen")}
-    assert summed == ticked
+    gained = {key: value - before.get(key, 0) for key, value in state["ledger"].items()
+              if value != before.get(key, 0)}
+    assert {k: v for k, v in summed.items() if v} == gained
 
 
 def test_conservation_holds_through_riots_and_secession(start):
@@ -121,7 +130,11 @@ def test_starving_civ_loses_a_quarter_of_its_unfed_rounded_up(start):
     engine.tick(QUIET, state)
     produced = state["ledger"]["ironhold:food:production"]
     unfed = pop - produced
-    assert pop - engine.civ_pop(state, "ironhold") == -(-unfed // 4)
+    deaths = -sum(v for k, v in state["ledger"].items()
+                  if k.startswith("ironhold-") and k.endswith(":pop:death_starvation"))
+    assert deaths == -(-unfed // 4)
+    # With nothing to eat the starting scout can't be fed either, so its person comes home.
+    assert "ironhold-u0" not in state["units"]
     assert civ["stability"] < QUIET.stability_start
 
 

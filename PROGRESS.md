@@ -25,6 +25,7 @@ Update this at the end of every Claude Code session.
 - docs/rules.md approved 2026-11-10, after one opus review round; PLAN.md patched for its 14 departures
 - Outposts 7 to 9 tiles from the capital; default allocation, quirk effects and rule readings in rules.md section 21 (approved 2026-11-10)
 - M4 readings (approved 2026-11-10): one research pool (ADR 0002); build queue of 5, one build per settlement, paid at start; building at the end of step 7; repair 1 tick; stage drops keep land; printing x1.5 from the printing house; coast is fishing ground; hints and catch-up wait for Phase 2 and 3
+- M5 design (approved 2026-11-11): docs/design/m5-sketch.md, with its 9 open questions settled as recommended; readings in rules.md section 21
 
 ## Open numbers (tuned by Phase 1 and Phase 4 tests)
 - Run-out schedule (rules 4.7): starting stocks and small-node sizes
@@ -36,14 +37,15 @@ Update this at the end of every Claude Code session.
 - [x] M2 worldgen: spaced capitals, home regions, nodes, outposts, town traits
 - [x] M3 economy tick: production with worker allocation, consumption, upkeep, growth, starvation, stability, unrest, secession, Providence and quirk events (75 tests)
 - [x] M4 tech tree, research pool, build queue, placement, contestable claims, growth stages, fishing (104 tests)
-- [ ] M5 units, sight, contact detection, standing orders
+- [x] M5 units, sight and contact, the turn path (briefs, replies, one action table with reason codes), wakes off the event log (ADR 0003), reorder rules, spiral scout bot (128 tests)
 - [ ] M6 bots, runner, snapshot, tuning tests
 - [ ] M7 viewer
 
 ## Found in M3
 - With no bot building anything, every civ dies out by about tick 100 on seed 1: stone runs out, upkeep goes unpaid, farms become ruins, then everyone starves. Rules 4.7 expects a decline to what the land supports, not extinction. This gets checked again with scripted bots in M6 before any number changes.
+- In M5, a spiral scout run on seed 1 maps 333 to 595 tiles per civ in 200 ticks, with no contact. Scouts starve once a civ with no economy bot runs out of food. Bots that hit sea or unseen land three turns running get skipped, as the rules intend.
 - Fixed in M4: coast in a settlement's land now counts as a fishing ground.
 - With a crude builder that queues buildings nonstop, timber goes on buildings, research stalls (3 techs in 200 ticks on seed 1) and civs still die out. Real bots and tuning come in M6.
 
 ## Next session
-M5: units, sight and contact detection, the spiral scout, standing orders and wake bookkeeping, and the rest of the action list with reason codes.
+M6: the scripted builder bot, the headless runner, snapshot and restore, and the tuning tests (run-out schedule, tree pace, outpost to town, determinism across processes, RNG isolation, resume).

@@ -9,7 +9,7 @@ ledger under the WORLDGEN rule.
 
 from math import isqrt
 
-from fogline import layout, ledger, rng
+from fogline import layout, ledger, rng, sight, units
 from fogline.config import Config
 from fogline.paths import CODE_FOR, path_costs
 from fogline.state import tile_key
@@ -59,6 +59,7 @@ def generate(config: Config, seed: int) -> dict:
         except _Reroll:
             continue
         if _spacing_ok(config, state):
+            sight.update(config, state, 0)  # every civ starts knowing the land round its towns
             return state
     raise WorldgenError(f"seed {seed}: no world met the spacing rules in {config.worldgen_attempts} attempts")
 
@@ -147,6 +148,7 @@ def _build(config: Config, seed: int, attempt: int) -> dict:
         "ledger": {},
         "world": {"harsh_winter_tick": -1},
         "events": [],
+        "units": {},
     }
 
     for civ in civ_ids:
@@ -386,6 +388,15 @@ def _found_civ(config: Config, state: dict, seed: int, attempt: int, civ: str,
         "score": 0,
         "prestige": 0,
         "build_queue": [],
+        "turn": {"wake_at": 0, "last_woke": 0, "triggers": [], "cursor": 0, "rejections": [],
+                 "invalid_streak": 0, "skip_next": False, "below": []},
+        "origin": "",
+        "known": ["0" * config.map_size for _ in range(config.map_size)],
+        "met": {},
+        "in_view": [],
+        "sites": {},
+        "reorders": [],
+        "next_unit": 0,
     }
     state["civs"][civ] = civ_state
     for resource, amount in sorted(spec.start_stock.items()):
@@ -451,6 +462,8 @@ def _found_civ(config: Config, state: dict, seed: int, attempt: int, civ: str,
     if len(chosen) < config.outposts_per_civ:
         raise _Reroll(f"{civ} found room for only {len(chosen)} outposts")
     _town_traits(config, state, seed, attempt, civ)
+    civ_state["origin"] = state["settlements"][capital_id]["tile"]
+    units.spawn(config, state, civ, "scout", capital_id, None, pay=False, ready_now=True)
 
 
 def _town_traits(config: Config, state: dict, seed: int, attempt: int, civ: str) -> None:

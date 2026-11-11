@@ -410,3 +410,13 @@ Where the rules above leave a choice open, the engine does this (approved 2026-1
 - **Printing ×1.5** comes from a standing printing house, not the tech alone.
 - **Fishing:** any coast tile in a settlement's land is a fishing ground (2 slots, 6 with a harbour).
 - **Tech hints and the "never seen" gate** wait for the Phase 2 observation builder; until then gates check territory only. The catch-up discount stays at 0 until contact exists in Phase 3.
+- **M5 turns, units and sight** (approved 2026-11-11; design in `docs/design/m5-sketch.md`):
+  - Sight is a square: a radius of 2 covers the 5 × 5 tiles around a unit or settlement.
+  - A turn with no actions resets the invalid streak.
+  - A unit whose food upkeep can't be paid disbands to its home settlement; its people survive.
+  - A move order's target must be within 2 tiles of ground the civ has seen; the route runs on the true map.
+  - A skipped turn makes no call, and the civ is due again next tick with its triggers kept.
+  - Training never takes a settlement's last person.
+  - People serving in units count towards score population.
+  - Up to 3 reorder rules per civ; `next_wake.ticks` is 1 to 8.
+  - No cooldown on `foreign_unit_sighted`; the one call per civ per tick is the limit.

@@ -1,13 +1,15 @@
 """The tick loop (docs/rules.md section 1).
 
-This milestone runs step 2 (production), step 6 (consumption) and step 7 (events, unrest,
-stability, score). Wake-and-decide, trade, movement and combat join in later milestones.
-Every stock change goes through ledger.apply; every draw comes from a fresh rng stream.
+Runs step 1 (wake and decide), 2 (production and research), 4 (movement, sight, contact),
+6 (consumption) and 7 (events, unrest, stability, building, score). Trade (step 3) arrives in
+Phase 3 and combat (step 5) in Phase 5. Every stock change goes through ledger.apply; every
+draw comes from a fresh rng stream.
 """
 
+from collections.abc import Mapping
 from typing import Any
 
-from fogline import construction, ledger, rng, rules, techs, worldgen
+from fogline import construction, ledger, rng, rules, sight, techs, turns, units, worldgen
 from fogline.config import RESOURCES, Config
 from fogline.intmath import PER_MILLE, ceil_div, floor_div, per_mille
 from fogline.layout import biome_name, is_land, node_tiles, occupied_tiles
@@ -23,20 +25,33 @@ NODE_WORK = {"forest": "timber", "stone": "stone", "metal": "metal"}
 Log = list[dict[str, Any]] | None
 
 
-def tick(config: Config, state: dict, log: Log = None) -> None:
-    """Advance the world by one season."""
+def tick(config: Config, state: dict, log: Log = None, *,
+         deciders: Mapping[str, turns.Decider] | None = None) -> list[turns.TurnRecord]:
+    """Advance the world by one season and return the turns taken in it.
+
+    With no deciders nobody is called, but wakes are still kept, so every civ simply sleeps.
+    """
     now = state["tick"]
     scratch: dict[str, dict[str, Any]] = {civ: {} for civ in sorted(state["civs"])}
+    records = turns.step(config, state, deciders, log)
     _production(config, state, now, log, scratch)
     _research(config, state, now, log)
+    units.move_all(config, state, now)
+    sight.update(config, state, now)
     _consumption(config, state, now, log, scratch)
     _events(config, state, now, log, scratch)
     state["tick"] = now + 1
+    return records
 
 
-def run(config: Config, state: dict, ticks: int, log: Log = None) -> None:
+def run(config: Config, state: dict, ticks: int, log: Log = None, *,
+        deciders: Mapping[str, turns.Decider] | None = None) -> list[turns.TurnRecord]:
+    # shortcut: every record (with its brief) stays in memory, which suits tests and short runs.
+    # A 1,000-tick run should call tick() and write each tick's records out as it goes.
+    records: list[turns.TurnRecord] = []
     for _ in range(ticks):
-        tick(config, state, log)
+        records += tick(config, state, log, deciders=deciders)
+    return records
 
 
 # ---------------------------------------------------------------- helpers
@@ -119,6 +134,7 @@ def _production(config: Config, state: dict, now: int, log: Log, scratch: dict) 
     for civ_id in sorted(state["civs"]):
         civ = state["civs"][civ_id]
         food_room = civ["food_worker_cap"] or None
+        budget = [rule["workers"] for rule in civ["reorders"]]
         produced = {line: 0 for line in rules.LINES}
         research_milli = 0
         assigned = 0
@@ -134,6 +150,12 @@ def _production(config: Config, state: dict, now: int, log: Log, scratch: dict) 
                     slots[rules.WORK_LINE[site["work"]]] += site["slots"]
                 capped = food_room is not None and _in_home_region(config, state, civ_id, settlement["tile"])
                 workers = rules.allocate(settlement["pop"], slots, civ["allocation"], food_room if capped else None)
+                if civ["reorders"]:
+                    room = dict(slots)
+                    if capped:  # reorders respect a food-short civ's cap too
+                        room["food"] = min(slots["food"], max(food_room, workers["food"]))
+                    workers, budget = rules.reorder_shift(settlement["pop"], workers, room, civ["stocks"],
+                                                          civ["reorders"], budget)
                 if capped:
                     food_room -= workers["food"]
             settlement["workers"] = workers
@@ -268,6 +290,7 @@ def _consumption(config: Config, state: dict, now: int, log: Log, scratch: dict)
         need = pop * config.food_per_person
         eaten = min(need, stocks["food"])
         _apply(state, log, civ_id, stocks, "food", -eaten, Rule.EATING)
+        units.pay_upkeep(config, state, civ_id, log)
         unfed = ceil_div(need - eaten, config.food_per_person)
 
         fuel = rules.fuel_needed(config, pop, season, harsh)
@@ -474,6 +497,6 @@ def _score(config: Config, state: dict, civ_id: str) -> None:
     civ = state["civs"][civ_id]
     buildings = sum(1 for sid in settlements_of(state, civ_id)
                     for b in state["settlements"][sid]["buildings"] if not b["ruin"])
-    civ["score"] = (civ_pop(state, civ_id) + config.score_per_building * buildings
+    civ["score"] = (civ_pop(state, civ_id) + units.people(state, civ_id) + config.score_per_building * buildings
                     + config.score_per_tech * len(civ["techs"])
                     + floor_div(civ["luxury_consumed"], config.score_luxury_divisor) + civ["prestige"])
