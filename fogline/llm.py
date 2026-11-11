@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-from fogline import schema
+from fogline import prompts, schema
 from fogline.state import canonical_json, state_hash
 from fogline.turns import Decider, Refused
 
@@ -70,17 +70,17 @@ class LiveAdapter:
     tools, no MCP servers and no saved session. Without safe mode, Claude Code builds the
     operator's own instructions and hook output into every call (ADR 0007)."""
 
-    def __init__(self, system_prompt: str, model: str = MODEL, timeout: float = 90.0,
+    def __init__(self, system_prompts: Mapping[str, str], model: str = MODEL, timeout: float = 90.0,
                  command: tuple[str, ...] = ("claude",)):
-        self.system_prompt, self.model, self.timeout, self.command = system_prompt, model, timeout, command
+        self.system_prompts, self.model, self.timeout, self.command = dict(system_prompts), model, timeout, command
 
     def call(self, key: Key, observation: dict) -> Outcome:
         argv = [*self.command, "-p", "--safe-mode", "--model", self.model, "--output-format", "json",
-                "--system-prompt", self.system_prompt, "--tools", "", "--strict-mcp-config",
+                "--system-prompt", self.system_prompts[key[1]], "--tools", "", "--strict-mcp-config",
                 "--no-session-persistence"]
         with tempfile.TemporaryDirectory() as empty:
             try:
-                done = subprocess.run(argv, input=canonical_json(observation), capture_output=True, text=True,
+                done = subprocess.run(argv, input=prompts.user_message(observation), capture_output=True, text=True,
                                       encoding="utf-8", timeout=self.timeout, cwd=empty, check=False)
             except subprocess.TimeoutExpired:
                 return Outcome(TIMEOUT, f"no reply in {self.timeout:g} s")

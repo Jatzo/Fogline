@@ -11,7 +11,8 @@ import dataclasses
 import json
 from pathlib import Path
 
-from fogline import bots, engine, llm, snapshot, techs, units, worldgen
+from fogline import bots, engine, llm, prompts, snapshot, techs, units, worldgen
+from fogline.agents import mock_ruler
 from fogline.config import Config
 from fogline.state import state_hash
 
@@ -28,12 +29,12 @@ LLM_MODES = ("bots", "mock", "replay", "live")
 
 
 def rulers(config: Config, state: dict, bot: str, mode: str, llm_civs: list[str] | None,
-           outputs: Path | None, prompt: str | None, out: Path | None) -> tuple[dict, llm.Recorder | None]:
+           outputs: Path | None, out: Path | None) -> tuple[dict, llm.Recorder | None]:
     """The deciders for a run, and the recorder if outputs are being kept.
 
-    bots: every civ is a scripted bot, called directly. mock: the chosen civs' bots speak through
-    the text adapter, as an LLM would. replay: the chosen civs answer from stored outputs. live: the
-    chosen civs call `claude -p` with the given system prompt. Civs not chosen stay scripted bots.
+    bots: every civ is a scripted bot, called directly. mock: the chosen civs are mock rulers
+    (fogline/agents/mock_ruler.py) speaking through the text adapter, as an LLM would. replay: the chosen civs answer from stored outputs. live: the
+    chosen civs call `claude -p` with their prompts (fogline/prompts.py). Civs not chosen stay scripted bots.
     """
     deciders = deciders_for(config, state, bot)
     if mode == "bots":
@@ -48,9 +49,15 @@ def rulers(config: Config, state: dict, bot: str, mode: str, llm_civs: list[str]
             raise ValueError("--llm replay needs --outputs, the outputs.jsonl of the run to replay")
         adapter: llm.Adapter = llm.ReplayAdapter(llm.load_outputs(outputs))
     else:
-        if mode == "live" and (not prompt or out is None):
-            raise ValueError("--llm live needs --prompt and --out, so every call is kept")
-        inner = llm.MockAdapter({c: deciders[c] for c in chosen}) if mode == "mock" else llm.LiveAdapter(prompt)
+        if mode == "live":
+            if out is None:
+                raise ValueError("--llm live needs --out, so every call is kept")
+            missing = [c for c in chosen if not prompts.has_culture(c)]
+            if missing:
+                raise ValueError(f"no culture prompt for {', '.join(missing)}; choose civs with --llm-civs")
+            inner: llm.Adapter = llm.LiveAdapter({c: prompts.system_prompt(config, c) for c in chosen})
+        else:
+            inner = llm.MockAdapter({c: mock_ruler.make(config, c, state["seed"]) for c in chosen})
         recorder = llm.Recorder(inner, out / "outputs.jsonl" if out else None)
         adapter = recorder
     for civ_id in chosen:
@@ -112,16 +119,15 @@ class Watch:
 
 
 def play(config: Config, seed: int, ticks: int, bot: str = "builder", out: Path | None = None, *,
-         mode: str = "bots", llm_civs: list[str] | None = None, outputs: Path | None = None,
-         prompt: str | None = None) -> tuple[dict, dict]:
+         mode: str = "bots", llm_civs: list[str] | None = None, outputs: Path | None = None) -> tuple[dict, dict]:
     """Run a world and return (final state, summary). With out, write the run folder as it goes.
     The folder must be new or empty: appending to an old run would mix two runs' logs and snapshots."""
     if out and out.exists() and any(out.iterdir()):
         raise FileExistsError(f"run folder {out} is not empty; pick a new --out")
     state = worldgen.generate(config, seed)
+    deciders, recorder = rulers(config, state, bot, mode, llm_civs, outputs, out)  # refuses a bad setup first
     if out:
         out.mkdir(parents=True, exist_ok=True)
-    deciders, recorder = rulers(config, state, bot, mode, llm_civs, outputs, prompt, out)
     watch = Watch(config, state)
     if out:
         manifest = {"seed": seed, "ticks": ticks, "bot": bot, "config_hash": config.config_hash(),
@@ -182,14 +188,12 @@ def main() -> None:
                              "live: claude -p")
     parser.add_argument("--llm-civs", help="comma-separated civs the --llm mode applies to (default: all)")
     parser.add_argument("--outputs", type=Path, help="outputs.jsonl to replay")
-    parser.add_argument("--prompt", type=Path, help="system prompt file for --llm live")
     args = parser.parse_args()
     config = dataclasses.replace(Config(), events_enabled=not args.no_events, supply_floor=args.supply)
     llm_civs = [c.strip() for c in args.llm_civs.split(",")] if args.llm_civs else None
-    prompt = args.prompt.read_text(encoding="utf-8") if args.prompt else None
     try:
         state, summary = play(config, args.seed, args.ticks, args.bot, args.out, mode=args.llm,
-                              llm_civs=llm_civs, outputs=args.outputs, prompt=prompt)
+                              llm_civs=llm_civs, outputs=args.outputs)
     except (FileExistsError, ValueError, llm.ReplayError) as error:
         parser.error(str(error))
     _print(summary, state)

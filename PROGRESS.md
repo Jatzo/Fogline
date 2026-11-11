@@ -98,5 +98,7 @@ Milestones: M8 observation and sea border, M9 schemas and the frontier rule, M10
 
 - [x] M12 `fogline/memory.py`: journal (16 × 200 characters) and strategy notes (800), written only through `memory.write` with a source tag and provenance; `set_note` action (own inference only); the observation shows journal and strategy, and trims old journal entries after the distant map and before events; LLM rulers reflect every 8 ticks after decide as step `reflect` (the mock writes a plain summary), scripted bots don't. No budget deferral: one decide plus one reflection per civ per tick can't go over. 242 tests.
 
+- [x] M13 `prompts/ruler.md` and `prompts/cultures/verdance.md` (approved by the operator 2026-11-11), `fogline/prompts.py` builds one system prompt per civ, `run --llm live` uses them (no `--prompt` flag), the mock ruler (builder plus `set_note`, a seeded bad order about one turn in ten), the prompt-leak check and the Phase 2 check over a recorded 200-tick game. The leak check found two leaks, both fixed: the schema listed wake triggers that only make sense with others (`contact`, `foreign_unit_sighted` and so on), and the observation carried `met`, `in_view` and `foreign_sites` from tick 0. Phase 2 run: 678 calls (120 reflections) on seed 1, replayed to the same hash. 247 tests.
+
 ## Next session
-M13: the ruler prompt and Verdance culture (drafts for the operator to edit and approve), the mock ruler, the prompt-leak check, and the 200-tick mock run. Before each live experiment, check a tiny call's input tokens again (ADR 0007).
+M14: the civ inspector in the viewer. Then the end-of-phase review. Before each live experiment, check a tiny call's input tokens again (ADR 0007).

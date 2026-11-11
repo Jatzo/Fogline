@@ -55,6 +55,10 @@ FIELDS: Mapping[str, Any] = {
 
 _TILE = re.compile(r"^-?\d+,-?\d+$")
 
+# Shown only once the civ has met someone. Before that even an empty list, or a key named
+# foreign_sites, would tell a ruler that other peoples exist.
+AFTER_CONTACT = frozenset({"in_view", "foreign_sites", "met"})
+
 
 class ObservationError(ValueError):
     """Raised when an observation holds a key or type the whitelist doesn't allow."""
@@ -74,7 +78,8 @@ def check_fields(value: Any, spec: Any = FIELDS, path: str = "observation") -> N
             check_fields(key, str, f"{path} key")
             check_fields(item, spec[str], f"{path}.{key}")
     elif isinstance(spec, Mapping):
-        if not isinstance(value, dict) or set(value) != set(spec):
+        optional = AFTER_CONTACT if spec is FIELDS else frozenset()
+        if not isinstance(value, dict) or not set(spec) - optional <= set(value) <= set(spec):
             got = sorted(value) if isinstance(value, dict) else type(value).__name__
             raise ObservationError(f"{path} keys {got} are not {sorted(spec)}")
         for key, item in value.items():
@@ -191,6 +196,9 @@ def observe(config: Config, state: dict, civ_id: str, raised: list[dict] | None 
         "strategy": strategy,
         "elided": [],
     }
+    if not met:
+        for key in AFTER_CONTACT:
+            del observation[key]
     _fit(observation)
     check_fields(observation)
     return observation

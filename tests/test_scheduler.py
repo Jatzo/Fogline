@@ -90,7 +90,8 @@ def test_a_mock_run_writes_outputs_that_replay_from_the_command_line(tmp_path, m
 
 @pytest.mark.parametrize("argv, message", [
     (["--llm", "replay"], "needs --outputs"),
-    (["--llm", "live"], "needs --prompt and --out"),
+    (["--llm", "live"], "needs --out"),
+    (["--llm", "live", "--llm-civs", "ironhold", "--out", "unused-run-folder"], "no culture prompt for ironhold"),
     (["--llm", "mock", "--llm-civs", "atlantis"], "no such civ"),
 ])
 def test_the_runner_refuses_an_incomplete_llm_setup(monkeypatch, capsys, argv, message):

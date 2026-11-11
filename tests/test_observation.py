@@ -81,7 +81,8 @@ def checked():
 
 def _check(state, civ_id, seen, counts):
     counts["observations"] += 1
-    counts["met"] += bool(seen["met"])
+    counts["met"] += bool(seen.get("met"))
+    assert ("met" in seen) == bool(state["civs"][civ_id]["met"])  # no hint of others before contact
     observation.check_fields(seen)
     assert observation.size(seen) <= observation.MAX_CHARS
 
@@ -89,7 +90,7 @@ def _check(state, civ_id, seen, counts):
         x, y = _absolute(state, civ_id, tile)
         assert sight.is_known(state, civ_id, x, y), (civ_id, tile)
         counts["tiles"] += 1
-    for item in seen["in_view"] + seen["foreign_sites"]:
+    for item in seen.get("in_view", []) + seen.get("foreign_sites", []):
         assert sight.is_known(state, civ_id, *_absolute(state, civ_id, item["tile"]))
 
     text = json.dumps(seen).lower()

@@ -6,7 +6,7 @@ A ruler sees state through one function, `observation.observe()`. It builds the 
 What it shows, and how:
 - Tiles are "dx,dy" from the civ's origin. Event and trigger text goes through one token mapper: absolute tiles become relative, the civ's own ids stay, a met civ's ids become its name, and any event that names an unmet civ is dropped. Own events and world events (comet, harsh winter) are shown; nobody else's.
 - The observation is capped at 12,000 characters of canonical JSON (about 3,000 tokens). Over the cap, known tiles more than 6 from an own settlement or unit become counts per biome, then the oldest events go, then the farthest remaining tiles. Each trim is named in `elided`.
-- There are no `messages` or `dossiers` keys before Phase 3. An empty list would tell a ruler that outsiders exist.
+- There are no `messages` or `dossiers` keys before Phase 3. An empty list would tell a ruler that outsiders exist. For the same reason, `met`, `in_view` and `foreign_sites` appear only once the civ has met someone. The M8 version sent them empty from tick 0, and a key named `foreign_sites` gave the game away; the M13 prompt-leak check found it.
 
 To hide where the map ends, the land is drawn on a 64 × 64 grid as before and then set inside 4 tiles of sea, so the map is 72 × 72. Sight is 2, so no unit can see past the sea to the edge, and the outer shore is coast like any other.
 

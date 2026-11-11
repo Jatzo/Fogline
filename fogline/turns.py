@@ -41,6 +41,12 @@ class Trigger(StrEnum):
 
 ALWAYS_ON = frozenset({Trigger.ATTACK, Trigger.CONTACT, Trigger.TREATY_PROPOSED, Trigger.OFFER_EXPIRING})
 
+# The triggers a ruler is told it can ask for (schema.json_schema). The others only make sense if
+# other peoples exist, so naming them before contact would tell a ruler it isn't alone. They are
+# still accepted if sent, and the always-on ones fire regardless.
+OWN_TRIGGERS = (Trigger.BUILD_DONE, Trigger.STOCK_BELOW_THRESHOLD, Trigger.TECH_UNLOCKED, Trigger.UNIT_ARRIVED,
+                Trigger.UNIT_IDLE)
+
 # Event kind in state["events"] -> the trigger it raises for that event's civ. The only place
 # this mapping lives; Phases 3 and 5 add rows here and wake nobody anywhere else.
 EVENT_TRIGGERS: Mapping[str, Trigger] = {

@@ -128,7 +128,7 @@ def test_no_brief_mentions_another_civ_before_contact(start):
     engine.run(CONFIG, state, 60, deciders={c: watch(c) for c in state["civs"]})
     assert briefs
     for civ_id, brief in briefs:
-        if brief["met"]:
+        if brief.get("met"):
             continue
         text = json.dumps(brief).lower()
         for other in state["civs"]:

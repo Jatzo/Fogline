@@ -113,7 +113,7 @@ def test_changing_one_civs_outputs_leaves_every_other_civ_untouched():
 
 
 def test_the_live_adapter_reports_a_failed_command_as_an_error_not_a_crash():
-    adapter = llm.LiveAdapter("system", command=("fogline-no-such-command",))
+    adapter = llm.LiveAdapter({"verdance": "system"}, command=("fogline-no-such-command",))
     outcome = adapter.call((0, "verdance", "decide"), {"tick": 0})
     assert outcome.status == llm.ERROR and "could not start" in outcome.raw
 
@@ -128,7 +128,7 @@ def test_the_live_adapter_runs_in_safe_mode_and_reads_the_result(monkeypatch):
         return subprocess.CompletedProcess(argv, 0, json.dumps(envelope), "")
 
     monkeypatch.setattr(llm.subprocess, "run", fake_run)
-    outcome = llm.LiveAdapter("rules of play").call((0, "verdance", "decide"), {"tick": 0})
+    outcome = llm.LiveAdapter({"verdance": "rules of play"}).call((0, "verdance", "decide"), {"tick": 0})
     assert outcome == llm.Outcome(llm.OK, '{"actions": []}')
     argv = sent["argv"]
     assert "--safe-mode" in argv and argv[argv.index("--tools") + 1] == ""
