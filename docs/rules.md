@@ -25,7 +25,7 @@ Each tick runs in this order:
 
 ## 2. Map and worldgen
 
-- **Size:** 64 × 64 tiles of land inside a 4-tile sea border, so 72 × 72 in all (section 21). Sea is impassable in v1.
+- **Size:** 64 × 64 tiles of land inside a 6-tile sea border, so 76 × 76 in all (section 21). Sea is impassable in v1.
 - **Biomes and movement cost** (movement points to enter a tile): plains 1, coast 1, forest 2, desert 2, tundra 2, mountains 3. Crossing a river adds 1, unless there is a road.
 - **Nodes** are placed by worldgen:
 
@@ -407,7 +407,7 @@ Where the rules above leave a choice open, the engine does this (approved 2026-1
 - **Growth window (changes 4.1, approved 2026-11-11):** the 4-tick window counts unit food upkeep as consumption, due whether or not it was paid, as people are counted by what they need. The 40-tick store test still counts people only.
 - **Luxury (approved 2026-11-11):** every settlement with luxury in stock uses 1 every 4 ticks (4.4a's "town" means any settlement), and a use holds the +5 stability for 4 ticks, the tick of use and the 3 after.
 - **Own land in the brief (approved 2026-11-11):** a civ's brief lists every node in its own territory, seen or not. A civ knows the land it claims.
-- **Sea border (changes 2, approved 2026-11-11):** the map is 72 × 72: the 64 × 64 land is drawn as before, then set inside 4 tiles of sea, and land touching that sea becomes coast like any shore. Sight is 2, so no unit sees past the sea to the map's end. The new shore opens the coast-gated tech for some civs, so a supplied builder now runs out of techs at tick 329 to 438 (seeds 1 to 5; 381 to 438 for civs that reach all 21), and the tree-pace window is 300 to 450.
+- **Sea border (changes 2, approved 2026-11-11; widened after the Phase 2 review):** the map is 76 × 76: the 64 × 64 land is drawn as before, then set inside 6 tiles of sea, the largest sight radius (a fortress, 4) plus the 2-tile order margin, so no unit sees past the sea or can probe the edge with a move order. It was 4 tiles until the review found a fortress on the outer shore could see the last row; and land touching that sea becomes coast like any shore. The new shore opens the coast-gated tech for some civs, so a supplied builder now runs out of techs at tick 329 to 438 (seeds 1 to 5; 381 to 438 for civs that reach all 21), and the tree-pace window is 300 to 450.
 - **Observation (Phase 2 M8, approved 2026-11-11; ADR 0006):** a ruler sees state only through `observation.observe()`, checked against a whitelist. Trigger and event text is shown with tiles made relative and a met civ's ids replaced by its name; an event that names an unmet civ is dropped. Own and world events since the last turn are shown, with each stock's change since then. The cap is 12,000 characters.
 - **Standing orders (Phase 2, approved 2026-11-11):** worker allocation and the build queue stay persistent actions (`allocate_workers`, `build`). `end_turn` carries `next_wake` and reorder rules only (changes section 16).
 - **Replies (Phase 2 M9, approved 2026-11-11):** a ruler's raw text is refused as `unparseable_reply` when it is over 20,000 characters, isn't JSON or nests deeper than 8; a reply with any top-level key besides `actions` and `end_turn` is `malformed`. Every action argument is typed in `actions.action_table()`, and the schema a ruler reads is exported from that table. A foreign unit id answers `unknown_unit`, like a made-up one.

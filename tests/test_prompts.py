@@ -21,7 +21,7 @@ TICKS = 200
 # only: in a report they would match ordinary stock counts.
 HINTS = re.compile(r"\bcivs?\b|civili[sz]ation|\brivals?\b|\boutsiders?\b|foreign|\bstrangers?\b|"
                    r"\bmet\b|other (?:peoples?|nations?|realms?|rulers?)", re.IGNORECASE)
-SIZE = re.compile(r"\bmap\b|\b72\b|\b64\b", re.IGNORECASE)
+SIZE = re.compile(r"\bmap\b|\b76\b|\b64\b", re.IGNORECASE)
 
 
 def _hints(text, pattern=HINTS):

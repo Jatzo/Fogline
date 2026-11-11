@@ -8,7 +8,7 @@ What it shows, and how:
 - The observation is capped at 12,000 characters of canonical JSON (about 3,000 tokens). Over the cap, known tiles more than 6 from an own settlement or unit become counts per biome, then the oldest events go, then the farthest remaining tiles. Each trim is named in `elided`.
 - There are no `messages` or `dossiers` keys before Phase 3. An empty list would tell a ruler that outsiders exist. For the same reason, `met`, `in_view` and `foreign_sites` appear only once the civ has met someone. The M8 version sent them empty from tick 0, and a key named `foreign_sites` gave the game away; the M13 prompt-leak check found it.
 
-To hide where the map ends, the land is drawn on a 64 × 64 grid as before and then set inside 4 tiles of sea, so the map is 72 × 72. Sight is 2, so no unit can see past the sea to the edge, and the outer shore is coast like any other.
+To hide where the map ends, the land is drawn on a 64 × 64 grid as before and then set inside 6 tiles of sea, so the map is 76 × 76. That is the largest sight radius (a stone fortress, 4) plus the 2-tile margin a move order may reach past known ground. So no unit sees past the sea to the edge, no move order can aim off the map, and the outer shore is coast like any other. A test ties the border to every sight radius in config. It was 4 tiles at first; the Phase 2 review found that a fortress on the outer shore could then see the last row.
 
 ## Why
 The M5 brief was fog-honest but built ad hoc: nothing stopped a later change from adding a field that leaked. A whitelist builder makes a leak a deliberate edit that a test reads. Redacting the full state instead would mean every new state field leaks until someone remembers to hide it.

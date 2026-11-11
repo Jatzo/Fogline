@@ -146,3 +146,11 @@ def test_rivers_reach_the_forest_and_desert_capitals(worlds):
             cx, cy = _xy(world["settlements"][f"{spec.civ_id}-0"]["tile"])
             near = [(cx + dx, cy + dy) for dx in (-1, 0, 1) for dy in (-1, 0, 1) if dx or dy]
             assert any(world["map"]["river"][y][x] == "1" for x, y in near)
+
+
+def test_the_sea_border_hides_the_edge_from_every_sight_and_every_order():
+    # Units can't enter sea, so the furthest past the shore anyone sees is the largest sight
+    # radius, and a move order may aim order_margin beyond that (rules 21, ADR 0006).
+    radii = [spec["sight"] for spec in CONFIG.units.values()]
+    radii += [CONFIG.settlement_sight, CONFIG.fortress_sight, CONFIG.scout_sight_pathfinding]
+    assert CONFIG.sea_border >= max(radii) + CONFIG.order_margin
