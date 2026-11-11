@@ -26,6 +26,25 @@ def deciders_for(config: Config, state: dict, bot: str = "builder") -> dict:
 
 
 LLM_MODES = ("bots", "mock", "replay", "live")
+FAILED_TICKS_TO_STOP = {llm.ERROR: 3, llm.TIMEOUT: 5}  # ticks in a row where every live call failed
+
+
+class Failing:
+    """Counts ticks in a row where every live call failed the same way. Read on the main thread
+    after each tick, so thread order can't hide a failure."""
+
+    def __init__(self) -> None:
+        self.streak = {status: 0 for status in FAILED_TICKS_TO_STOP}
+
+    def after(self, rows: list[dict]) -> None:
+        if not rows:
+            return
+        statuses = {r["status"] for r in rows}
+        for status, limit in FAILED_TICKS_TO_STOP.items():
+            self.streak[status] = self.streak[status] + 1 if statuses == {status} else 0
+            if self.streak[status] >= limit:
+                raise llm.LiveFailure(f"every live call failed ({status}) for {limit} ticks in a row; "
+                                      f"last: {rows[-1]['raw']}")
 
 
 def rulers(config: Config, state: dict, bot: str, mode: str, llm_civs: list[str] | None,
@@ -137,10 +156,14 @@ def play(config: Config, seed: int, ticks: int, bot: str = "builder", out: Path 
                     "model": llm.MODEL if mode == "live" else None}
         (out / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="ascii")
         snapshot.save(state, out / "snap-00000.json.gz")
+    failing = Failing() if mode == "live" else None
     for _ in range(ticks):
         now = state["tick"]
         log: list | None = [] if out else None
+        seen_rows = len(recorder.rows) if recorder else 0
         records = engine.tick(config, state, log, deciders=deciders)
+        if failing and recorder:
+            failing.after(recorder.rows[seen_rows:])
         watch.after_tick(state, now)
         if out:
             snapshot.append_lines(out / "ledger.jsonl", log)
@@ -194,7 +217,7 @@ def main() -> None:
     try:
         state, summary = play(config, args.seed, args.ticks, args.bot, args.out, mode=args.llm,
                               llm_civs=llm_civs, outputs=args.outputs)
-    except (FileExistsError, ValueError, llm.ReplayError) as error:
+    except (FileExistsError, ValueError, llm.ReplayError, llm.LiveFailure) as error:
         parser.error(str(error))
     _print(summary, state)
 

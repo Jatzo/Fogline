@@ -40,6 +40,11 @@ class Adapter(Protocol):
     def call(self, key: Key, observation: dict) -> Outcome: ...
 
 
+class LiveFailure(RuntimeError):
+    """Raised by the runner when live calls keep failing, so a broken CLI can't play a whole game
+    of empty turns (fogline/run.py)."""
+
+
 class ReplayError(RuntimeError):
     """Raised when a replay has no stored output for a call, or the call's observation changed."""
 

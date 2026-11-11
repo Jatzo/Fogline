@@ -134,3 +134,33 @@ def test_the_live_adapter_runs_in_safe_mode_and_reads_the_result(monkeypatch):
     assert "--safe-mode" in argv and argv[argv.index("--tools") + 1] == ""
     assert argv[argv.index("--system-prompt") + 1] == "rules of play"
     assert sent["input"] == '{"tick":0}'
+
+
+def _fake_cli(monkeypatch, answers):
+    """Make every claude -p call answer from answers in turn: an int exit code or a reply text."""
+    state = {"n": 0}
+
+    def fake_run(argv, **kwargs):
+        answer = answers[min(state["n"], len(answers) - 1)]
+        state["n"] += 1
+        if isinstance(answer, int):
+            return subprocess.CompletedProcess(argv, answer, "", "unknown option --safe-mode")
+        return subprocess.CompletedProcess(argv, 0, json.dumps({"is_error": False, "result": answer}), "")
+
+    monkeypatch.setattr(llm.subprocess, "run", fake_run)
+    return state
+
+
+def test_a_live_run_stops_when_every_call_keeps_failing(tmp_path, monkeypatch):
+    _fake_cli(monkeypatch, [1])
+    with pytest.raises(llm.LiveFailure, match="unknown option"):
+        run.play(CONFIG, 1, 60, out=tmp_path / "live", mode="live", llm_civs=["verdance"])
+    rows = llm.load_outputs(tmp_path / "live" / "outputs.jsonl")
+    assert [r["status"] for r in rows] == [llm.ERROR] * 3
+
+
+def test_a_live_run_carries_on_once_a_call_succeeds(tmp_path, monkeypatch):
+    reply = json.dumps({"actions": [], "end_turn": {"next_wake": {"ticks": 1}}})
+    _fake_cli(monkeypatch, [1, 1, reply])
+    state, summary = run.play(CONFIG, 1, 30, out=tmp_path / "live", mode="live", llm_civs=["verdance"])
+    assert state["tick"] == 30 and summary["verdance"]["calls"][llm.OK] > 0
