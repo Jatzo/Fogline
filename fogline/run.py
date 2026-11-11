@@ -11,7 +11,7 @@ import dataclasses
 import json
 from pathlib import Path
 
-from fogline import bots, engine, snapshot, techs, units, worldgen
+from fogline import bots, engine, llm, snapshot, techs, units, worldgen
 from fogline.config import Config
 from fogline.state import state_hash
 
@@ -22,6 +22,40 @@ BOTS = {"builder": lambda config, civ_id: bots.make_builder(config, "food" in co
 def deciders_for(config: Config, state: dict, bot: str = "builder") -> dict:
     """One scripted ruler per civ."""
     return {civ_id: BOTS[bot](config, civ_id) for civ_id in sorted(state["civs"])}
+
+
+LLM_MODES = ("bots", "mock", "replay", "live")
+
+
+def rulers(config: Config, state: dict, bot: str, mode: str, llm_civs: list[str] | None,
+           outputs: Path | None, prompt: str | None, out: Path | None) -> tuple[dict, llm.Recorder | None]:
+    """The deciders for a run, and the recorder if outputs are being kept.
+
+    bots: every civ is a scripted bot, called directly. mock: the chosen civs' bots speak through
+    the text adapter, as an LLM would. replay: the chosen civs answer from stored outputs. live: the
+    chosen civs call `claude -p` with the given system prompt. Civs not chosen stay scripted bots.
+    """
+    deciders = deciders_for(config, state, bot)
+    if mode == "bots":
+        return deciders, None
+    chosen = sorted(llm_civs or state["civs"])
+    unknown = set(chosen) - set(state["civs"])
+    if unknown:
+        raise ValueError(f"no such civ: {', '.join(sorted(unknown))}")
+    recorder = None
+    if mode == "replay":
+        if outputs is None:
+            raise ValueError("--llm replay needs --outputs, the outputs.jsonl of the run to replay")
+        adapter: llm.Adapter = llm.ReplayAdapter(llm.load_outputs(outputs))
+    else:
+        if mode == "live" and (not prompt or out is None):
+            raise ValueError("--llm live needs --prompt and --out, so every call is kept")
+        inner = llm.MockAdapter({c: deciders[c] for c in chosen}) if mode == "mock" else llm.LiveAdapter(prompt)
+        recorder = llm.Recorder(inner, out / "outputs.jsonl" if out else None)
+        adapter = recorder
+    for civ_id in chosen:
+        deciders[civ_id] = llm.make_ruler(adapter, civ_id)
+    return deciders, recorder
 
 
 class Watch:
@@ -77,18 +111,24 @@ class Watch:
         return result
 
 
-def play(config: Config, seed: int, ticks: int, bot: str = "builder", out: Path | None = None) -> tuple[dict, dict]:
+def play(config: Config, seed: int, ticks: int, bot: str = "builder", out: Path | None = None, *,
+         mode: str = "bots", llm_civs: list[str] | None = None, outputs: Path | None = None,
+         prompt: str | None = None) -> tuple[dict, dict]:
     """Run a world and return (final state, summary). With out, write the run folder as it goes.
     The folder must be new or empty: appending to an old run would mix two runs' logs and snapshots."""
     if out and out.exists() and any(out.iterdir()):
         raise FileExistsError(f"run folder {out} is not empty; pick a new --out")
     state = worldgen.generate(config, seed)
-    deciders = deciders_for(config, state, bot)
-    watch = Watch(config, state)
     if out:
         out.mkdir(parents=True, exist_ok=True)
+    deciders, recorder = rulers(config, state, bot, mode, llm_civs, outputs, prompt, out)
+    watch = Watch(config, state)
+    if out:
         manifest = {"seed": seed, "ticks": ticks, "bot": bot, "config_hash": config.config_hash(),
-                    "events_enabled": config.events_enabled, "supply": config.supply_floor}
+                    "events_enabled": config.events_enabled, "supply": config.supply_floor, "llm": mode,
+                    "llm_civs": sorted(llm_civs or state["civs"]) if mode != "bots" else [],
+                    "outputs": str(outputs) if outputs else None,
+                    "model": llm.MODEL if mode == "live" else None}
         (out / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="ascii")
         snapshot.save(state, out / "snap-00000.json.gz")
     for _ in range(ticks):
@@ -102,6 +142,9 @@ def play(config: Config, seed: int, ticks: int, bot: str = "builder", out: Path 
             if state["tick"] % config.snapshot_every == 0:
                 snapshot.save(state, out / f"snap-{state['tick']:05d}.json.gz")
     summary = watch.summary(state)
+    if recorder:
+        for civ_id, calls in recorder.usage().items():
+            summary[civ_id]["calls"] = calls
     if out:
         (out / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="ascii")
     return state, summary
@@ -116,6 +159,8 @@ def _print(summary: dict, state: dict) -> None:
               f"{row['pop_at_100']} at tick 100; food output peak {row['peak_food_output']}, "
               f"{row['food_output_at_100']} at tick 100")
         print(f"  techs {row['techs']}, tree done {row['tree_done']}, first town {row['first_town']}")
+        if "calls" in row:
+            print("  ruler calls " + ", ".join(f"{status} {n}" for status, n in row["calls"].items()))
         for event in row["stages"]:
             print(f"  tick {event['tick']}: {event['detail']}")
         for sid, town in row["towns"].items():
@@ -132,11 +177,20 @@ def main() -> None:
     parser.add_argument("--supply", type=int, default=0,
                         help="test-only top-up of basics each tick (ADR 0004); 0 is off")
     parser.add_argument("--out", type=Path, help="write a run folder here, for example runs/seed1")
+    parser.add_argument("--llm", choices=LLM_MODES, default="bots",
+                        help="bots: scripted only; mock: bots through the text adapter; replay: stored outputs; "
+                             "live: claude -p")
+    parser.add_argument("--llm-civs", help="comma-separated civs the --llm mode applies to (default: all)")
+    parser.add_argument("--outputs", type=Path, help="outputs.jsonl to replay")
+    parser.add_argument("--prompt", type=Path, help="system prompt file for --llm live")
     args = parser.parse_args()
     config = dataclasses.replace(Config(), events_enabled=not args.no_events, supply_floor=args.supply)
+    llm_civs = [c.strip() for c in args.llm_civs.split(",")] if args.llm_civs else None
+    prompt = args.prompt.read_text(encoding="utf-8") if args.prompt else None
     try:
-        state, summary = play(config, args.seed, args.ticks, args.bot, args.out)
-    except FileExistsError as error:
+        state, summary = play(config, args.seed, args.ticks, args.bot, args.out, mode=args.llm,
+                              llm_civs=llm_civs, outputs=args.outputs, prompt=prompt)
+    except (FileExistsError, ValueError, llm.ReplayError) as error:
         parser.error(str(error))
     _print(summary, state)
 

@@ -14,7 +14,9 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any, TypedDict
 
-from fogline import actions, observation, schema
+import functools
+
+from fogline import actions, observation, scheduler, schema
 from fogline.actions import Reason
 from fogline.config import RESOURCES, Config
 from fogline.state import StateError, check_plain, record_event
@@ -217,8 +219,8 @@ def _apply(config: Config, state: dict, civ_id: str, seen: dict | None, reply: o
 
 def step(config: Config, state: dict, deciders: Mapping[str, Decider] | None, log: list | None) -> list[TurnRecord]:
     """Step 1. Every due civ's observation is built before any reply is applied, then the deciders are
-    called (a plain loop now; Phase 2 makes this the concurrent part), then replies are applied in
-    civ id order. The cursor moves when a decider is called, so anything recorded later waits for
+    called together (fogline/scheduler.py), then replies are applied in civ id order, whatever order
+    the calls finished in. The cursor moves when a decider is called, so anything recorded later waits for
     the next wake. A skipped turn leaves the cursor alone, so its triggers are kept."""
     now = state["tick"]
     deciders = deciders or {}
@@ -243,8 +245,11 @@ def step(config: Config, state: dict, deciders: Mapping[str, Decider] | None, lo
         turn = state["civs"][civ_id]["turn"]
         turn["cursor"] = len(state["events"])
         turn["seen_stocks"] = dict(state["civs"][civ_id]["stocks"])  # stock_changes count from here
-    replies = {civ_id: (deciders[civ_id](copy.deepcopy(seen[civ_id]), copy.deepcopy(state["civs"][civ_id]["bot_memory"]))
-                        if civ_id in deciders else None) for civ_id in seen}
+    # Each call gets its own copies, made here before any thread starts, so no ruler can touch state.
+    calls = {civ_id: functools.partial(deciders[civ_id], copy.deepcopy(seen[civ_id]),
+                                       copy.deepcopy(state["civs"][civ_id]["bot_memory"]))
+             for civ_id in seen if civ_id in deciders}
+    replies = scheduler.call_all(calls, config.max_concurrent_calls)
     for civ_id in sorted(seen):
-        records.append(_apply(config, state, civ_id, seen[civ_id], replies[civ_id], log))
+        records.append(_apply(config, state, civ_id, seen[civ_id], replies.get(civ_id), log))
     return sorted(records, key=lambda r: r.civ)

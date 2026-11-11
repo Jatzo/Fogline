@@ -15,6 +15,7 @@ import copy
 import json
 import subprocess
 import tempfile
+import threading
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,6 +26,7 @@ from fogline.state import canonical_json, state_hash
 from fogline.turns import Decider, Refused
 
 OK, TIMEOUT, ERROR = "ok", "timeout", "error"
+MODEL = "claude-haiku-5-5"  # every ruler, by project decision (PLAN section 1)
 Key = tuple[int, str, str]  # (tick, civ, step)
 
 
@@ -63,7 +65,7 @@ class LiveAdapter:
     tools, no MCP servers and no saved session. Without safe mode, Claude Code builds the
     operator's own instructions and hook output into every call (ADR 0007)."""
 
-    def __init__(self, system_prompt: str, model: str = "claude-haiku-5-5", timeout: float = 90.0,
+    def __init__(self, system_prompt: str, model: str = MODEL, timeout: float = 90.0,
                  command: tuple[str, ...] = ("claude",)):
         self.system_prompt, self.model, self.timeout, self.command = system_prompt, model, timeout, command
 
@@ -95,17 +97,27 @@ class Recorder:
 
     def __init__(self, inner: Adapter, path: Path | None = None):
         self.inner, self.path, self.rows = inner, path, []
+        self.lock = threading.Lock()  # rulers are called in parallel; one row is written at a time
 
     def call(self, key: Key, observation: dict) -> Outcome:
         outcome = self.inner.call(key, observation)
         tick, civ, step = key
         row = {"tick": tick, "civ": civ, "step": step, "status": outcome.status, "raw": outcome.raw,
                "obs_hash": state_hash(observation)}
-        self.rows.append(row)
-        if self.path:
-            with open(self.path, "a", encoding="utf-8") as handle:
-                handle.write(json.dumps(row, sort_keys=True) + "\n")
+        with self.lock:
+            self.rows.append(row)
+            if self.path:
+                with open(self.path, "a", encoding="utf-8") as handle:
+                    handle.write(json.dumps(row, sort_keys=True) + "\n")
         return outcome
+
+    def usage(self) -> dict[str, dict[str, int]]:
+        """Calls so far per civ, by status."""
+        counts: dict[str, dict[str, int]] = {}
+        for row in self.rows:
+            by_status = counts.setdefault(row["civ"], {})
+            by_status[row["status"]] = by_status.get(row["status"], 0) + 1
+        return {civ: dict(sorted(by_status.items())) for civ, by_status in sorted(counts.items())}
 
 
 class ReplayAdapter:

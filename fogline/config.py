@@ -244,6 +244,7 @@ class Config:
     max_reorders: int = 3
     max_actions_per_turn: int = 12
     invalid_turns_before_skip: int = 3
+    max_concurrent_calls: int = 5  # rulers called at once in a tick (rules 16)
 
     # Providence (rules 19)
     events_enabled: bool = True
