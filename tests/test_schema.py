@@ -138,3 +138,18 @@ def test_the_schema_and_the_checks_agree_on_every_action():
     assert limits["actions"]["maxItems"] == CONFIG.max_actions_per_turn
     wake = limits["end_turn"]["properties"]["next_wake"]["properties"]["ticks"]
     assert (wake["minimum"], wake["maximum"]) == (1, CONFIG.max_wake_ticks)
+
+
+def test_a_huge_rejected_kind_is_cut_and_the_next_report_stays_within_the_cap(start):
+    from fogline import observation, turns
+    state = copy.deepcopy(start)
+    replies = iter([
+        {"actions": [{"kind": "x" * 19_000}], "end_turn": {"next_wake": {"ticks": 1, "triggers": []}}},
+        turns.Refused(({"index": -1, "kind": "y" * 19_000, "reason": "unparseable_reply"},)),
+    ])
+    for _ in range(2):
+        reply = next(replies)
+        engine.tick(CONFIG, state, deciders={"verdance": lambda o, m, r=reply: r})
+        seen = observation.observe(CONFIG, state, "verdance")
+        assert observation.size(seen) <= observation.MAX_CHARS
+        assert all(len(r["kind"]) <= turns.MAX_KIND_CHARS for r in seen["rejections"])

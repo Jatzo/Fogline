@@ -67,6 +67,14 @@ class Reply(TypedDict, total=False):
 Decider = Callable[[dict, dict], Reply]  # (observation, scratch memory) -> reply
 
 
+MAX_KIND_CHARS = 40  # a rejection echoes the ruler's own "kind"; a long one would eat its next report
+
+
+def _stored(rejections: list[dict]) -> list[dict]:
+    """Rejections as kept and shown next turn: the ruler's own text cut short."""
+    return [{**r, "kind": str(r.get("kind", ""))[:MAX_KIND_CHARS]} for r in rejections]
+
+
 @dataclass(frozen=True)
 class Refused:
     """A decider's answer when a ruler's text never became a reply (fogline/schema.py). The turn
@@ -214,6 +222,7 @@ def _apply(config: Config, state: dict, civ_id: str, seen: dict | None, reply: o
             turn["invalid_streak"] = 0
     else:
         turn["invalid_streak"] = 0  # an empty turn resets the streak too (rules 21)
+    rejections = _stored(rejections)
     turn["rejections"] = rejections
     too_deep = isinstance(reply, (dict, list)) and schema.depth(reply) > schema.MAX_DEPTH
     if isinstance(reply, Refused):
@@ -283,6 +292,7 @@ def reflect(config: Config, state: dict, deciders: Mapping[str, Decider]) -> lis
                 memory.write(config, state, civ_id, memory.STRATEGY, answer, memory.OWN, now, "reflect")
             except memory.NoteError:
                 rejections = [{"index": -1, "kind": "reflection", "reason": Reason.BAD_NOTE.value}]
+        rejections = _stored(rejections)
         state["civs"][civ_id]["turn"]["rejections"] += rejections  # seen with the next turn's
         records.append(TurnRecord(now, civ_id, "reflect", seen[civ_id], answer if isinstance(answer, str) else None,
                                   tuple(rejections)))

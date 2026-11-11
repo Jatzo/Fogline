@@ -211,7 +211,7 @@ def size(observation: dict) -> int:
 def _fit(observation: dict) -> None:
     """Trim to MAX_CHARS: known tiles more than NEAR from any own settlement or unit become counts
     per biome, then the oldest journal entries go, then the oldest events, then the farthest
-    remaining known tiles, until it fits."""
+    remaining known tiles, then the oldest rejections, until it fits."""
     if size(observation) <= MAX_CHARS:
         return
     anchors = [parse_tile_key(item["tile"]) for item in observation["settlements"] + observation["units"]]
@@ -229,7 +229,7 @@ def _fit(observation: dict) -> None:
         observation["known_elsewhere"] = dict(sorted(counts.items()))
 
     fold([tile for tile in observation["known"] if reach(tile) > NEAR])
-    budget = MAX_CHARS - 180  # room for the elided notes added at the end
+    budget = MAX_CHARS - 240  # room for the elided notes added at the end
     forgotten = 0
     while size(observation) > budget and observation["journal"]:
         observation["journal"].pop(0)
@@ -244,7 +244,13 @@ def _fit(observation: dict) -> None:
         fold([by_reach.pop() for _ in range(min(len(by_reach), over // 10 + 1))])  # an entry is about 12 chars
     if counts:
         observation["elided"].append(f"{sum(counts.values())} distant known tiles shown as counts by biome")
+    cut = 0
+    while size(observation) > budget and observation["rejections"]:
+        observation["rejections"].pop(0)
+        cut += 1
     if forgotten:
         observation["elided"].append(f"{forgotten} oldest journal entries")
+    if cut:
+        observation["elided"].append(f"{cut} oldest rejections")
     if dropped:
         observation["elided"].append(f"{dropped} oldest events")
