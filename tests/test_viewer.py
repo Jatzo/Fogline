@@ -7,10 +7,10 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from fogline import run, snapshot, view, worldgen
+from fogline import messages, run, snapshot, view, worldgen
 from fogline.config import Config
 from fogline.state import parse_tile_key, state_hash
-from fogline.viewer.app import STATIC, create_app
+from fogline.viewer.app import STATIC, civ_turn, create_app
 
 CIVS = sorted(spec.civ_id for spec in Config().civs)
 
@@ -139,3 +139,14 @@ def test_the_inspector_answers_plainly_when_there_is_nothing_to_show(mock_client
     scripted = client.get("/api/runs/town-run/turns", params={"civ": "verdance", "tick": 40}).json()
     assert scripted["decide"]["output"] is None  # a bots run keeps no outputs
     assert mock_client.get("/api/runs/no-such-run/turns", params={"civ": "verdance", "tick": 1}).status_code == 404
+
+
+def test_the_inspector_shows_message_bodies_without_the_wrapper(tmp_path):
+    seen = {"messages": [{"from": "Saltreach", "sent": 30, "hearsay": False,
+                          "text": messages.wrap("abc123", "Salt for grain.")}]}
+    record = {"civ": "verdance", "tick": 33, "step": "decide", "observation": seen}
+    (tmp_path / "turns.jsonl").write_text(json.dumps(record) + "\n", encoding="utf-8")
+    found = civ_turn(tmp_path, "verdance", 40)
+    assert [m["body"] for m in found["messages"]] == ["Salt for grain."]
+    assert found["decide"]["observation"] == seen  # the raw view the ruler saw is untouched
+    assert civ_turn(tmp_path, "verdance", 10)["messages"] == []

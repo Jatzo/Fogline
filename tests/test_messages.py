@@ -148,3 +148,11 @@ def test_a_message_cannot_be_laundered_into_the_civs_own_notes(start):
     entry = state["civs"]["verdance"]["memory"]["journal"][-1]
     assert entry["source"] == memory.FOREIGN and entry["about"] == "ironhold"
     assert observation.observe(CONFIG, state, "verdance")["journal"][-1]["about"] == "Ironhold"
+
+
+def test_unwrap_returns_the_body_and_leaves_other_shapes_alone():
+    body = "Grain for salt?\nReply by spring."
+    assert messages.unwrap(messages.wrap("0a1b2c", body)) == body
+    assert messages.unwrap("plain words") == "plain words"
+    mismatched = messages.wrap("0a1b2c", body).replace("[[end 0a1b2c]]", "[[end ffffff]]")
+    assert messages.unwrap(mismatched) == mismatched

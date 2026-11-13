@@ -45,6 +45,15 @@ def wrap(nonce: str, text: str) -> str:
     return f"[[message {nonce}]]\n{NOTE}\n{text}\n[[end {nonce}]]"
 
 
+def unwrap(wrapped: str) -> str:
+    """The body of a wrapped message, for the viewer. Text in any other shape comes back as it was."""
+    lines = wrapped.split("\n")
+    if (len(lines) >= 4 and re.fullmatch(r"\[\[message [0-9a-f]+\]\]", lines[0]) and lines[1] == NOTE
+            and lines[-1] == f"[[end {lines[0][10:-2]}]]"):
+        return "\n".join(lines[2:-1])
+    return wrapped
+
+
 def _nonce(seed: int, tick: int, sender: str, seq: int) -> str:
     draw = rng.stream(seed, "messages", tick, sender, f"nonce-{seq}")
     return "".join(draw.choice("0123456789abcdef") for _ in range(12))

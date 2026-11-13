@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from fogline import snapshot, view
+from fogline import messages, snapshot, view
 from fogline.config import Config
 
 STATIC = Path(__file__).parent / "static"
@@ -95,4 +95,6 @@ def civ_turn(folder: Path, civ: str, tick: int) -> dict:
         record = max((r for r in mine if r["step"] == step), key=lambda r: r["tick"], default=None)
         output = outputs.get((record["tick"], civ, step)) if record else None
         found[step] = record and {**record, "output": output and {"status": output["status"], "raw": output["raw"]}}
+    seen = (found["decide"] or {}).get("observation") or {}
+    found["messages"] = [{**m, "body": messages.unwrap(m["text"])} for m in seen.get("messages", [])]
     return found

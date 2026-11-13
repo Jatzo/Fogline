@@ -868,8 +868,8 @@ function renderTurn(data) {
     ["Rejected", turn.rejections.length ? turn.rejections.map((r) => `${r.kind || "reply"}: ${r.reason}`).join("\n") : "none"],
     ["Journal", seen && seen.journal.length ? seen.journal.slice(-3).map((e) => `${e.tick}: ${e.text}`).join("\n") : "empty"],
     ["Strategy", (data.reflect && data.reflect.reply) || (seen && seen.strategy) || "none yet"],
-    ["Messages", seen && seen.messages && seen.messages.length
-      ? seen.messages.slice(-3).map((m) => `${m.from}, sent tick ${m.sent}${m.hearsay ? " (hearsay: names a people it has not met)" : ""}`).join("\n")
+    ["Messages", data.messages && data.messages.length
+      ? data.messages.slice(-3).map((m) => `${m.from}, sent tick ${m.sent}${m.hearsay ? " (hearsay: names a people it has not met)" : ""}:\n${m.body}`).join("\n\n")
       : "none"],
     ["Offers", seen && seen.offers && seen.offers.length
       ? seen.offers.map((o) => `${o.id} ${o.from} to ${o.to}: ${goodsText(o.give)} for ${goodsText(o.get)} (${o.status}, ends tick ${o.expires})`).join("\n")
