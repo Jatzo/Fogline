@@ -81,12 +81,13 @@ def dispatch(config: Config, state: dict, sender: str, receiver: str, text: str,
 
 
 def _hearsay(config: Config, state: dict, receiver: str, text: str) -> tuple[str, bool]:
-    """Every mention of a civ the receiver hasn't met, by name or id, in any case or with a
-    possessive, becomes "a people you have not met"."""
+    """Every word that starts with the name or id of a civ the receiver hasn't met, in any case,
+    becomes "a people you have not met": a possessive, a suffix ("Frostmarkers") or a unit id
+    ("frostmark-u2") would otherwise carry the name through."""
     unmet = [c for c in sorted(state["civs"]) if c != receiver and c not in state["civs"][receiver]["met"]]
     found = False
     for civ_id in unmet:
-        pattern = re.compile(rf"\b(?:{re.escape(config.civ(civ_id).name)}|{re.escape(civ_id)})(?:-\w+)?(?:'s)?\b",
+        pattern = re.compile(rf"\b(?:{re.escape(config.civ(civ_id).name)}|{re.escape(civ_id)})[\w'-]*",
                              re.IGNORECASE)
         text, count = pattern.subn(UNMET, text)
         found = found or count > 0

@@ -36,10 +36,10 @@ def cost_meter(rows: list[dict], state: dict, start_tick: int, end_tick: int) ->
     of that stretch, with the call counts behind every figure (PLAN section 10, Phase 3b)."""
     meter = {}
     for civ_id in sorted({r["civ"] for r in rows}):
-        met = state["civs"][civ_id]["met"]
-        contact = min(met.values()) if met else end_tick
+        met, seen = state["civs"][civ_id]["met"], state["civs"][civ_id].get("first_contact_turn")
+        contact = end_tick if seen is None else min(seen, end_tick)
         spans = {"before_contact": (start_tick, contact), "after_contact": (contact, end_tick)}
-        meter[civ_id] = {"first_contact": min(met.values()) if met else None}
+        meter[civ_id] = {"first_contact": min(met.values()) if met else None, "first_contact_turn": seen}
         for name, (low, high) in spans.items():
             mine = [r for r in rows if r["civ"] == civ_id and low <= r["tick"] < high]
             spent = {"ticks": high - low, "calls": len(mine), "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}

@@ -97,7 +97,7 @@ def test_a_courier_arrives_after_the_path_cost_over_its_pace_with_a_fresh_delimi
 def test_a_civ_the_receiver_has_not_met_is_hearsay(start):
     state = copy.deepcopy(start)
     _meet(state, "verdance", "ironhold")
-    text = "Frostmark's scouts and FROSTMARK-0 are near; frostmark wants your metal."
+    text = "Frostmark's scouts and FROSTMARK-0 are near; frostmark wants your metal. The Frostmarkers lie."
     actions.dispatch(CONFIG, state, "ironhold", {"kind": "send_message", "to": "Verdance", "text": text})
     for _ in range(40):
         engine.tick(CONFIG, state)
@@ -105,7 +105,7 @@ def test_a_civ_the_receiver_has_not_met_is_hearsay(start):
             break
     received = state["civs"]["verdance"]["inbox"][0]
     assert received["hearsay"] and "frostmark" not in received["text"].lower()
-    assert received["text"].count(messages.UNMET) == 3
+    assert received["text"].count(messages.UNMET) == 4
 
 
 def _world(state):
@@ -142,6 +142,8 @@ def test_a_message_cannot_be_laundered_into_the_civs_own_notes(start):
     assert actions.dispatch(CONFIG, state, "verdance", note) == "bad_note"
     with pytest.raises(memory.NoteError):
         memory.write(CONFIG, state, "verdance", memory.STRATEGY, claim, memory.OWN, 1, "reflect")
+    with pytest.raises(memory.NoteError):  # "İ" lowers to 2 characters, which once pushed the copy out of view
+        memory.write(CONFIG, state, "verdance", memory.STRATEGY, "İ" * 30 + claim, memory.OWN, 1, "reflect")
     quote = {"kind": "set_note", "text": claim[:80], "about": "Ironhold", "quote": True}
     assert actions.dispatch(CONFIG, state, "verdance", quote) is None
     assert actions.dispatch(CONFIG, state, "verdance", {**quote, "text": claim[:81]}) == "bad_note"

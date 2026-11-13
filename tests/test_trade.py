@@ -137,10 +137,24 @@ def test_a_blueprint_unlocks_a_tech_only_for_a_buyer_who_can_use_it(start):
     assert "blueprint_destroyed" in kinds and "printing" in state["civs"]["verdance"]["techs"]
 
 
+def test_a_blueprint_in_an_offer_that_expires_is_logged_as_destroyed(start):
+    state = _pair(start)
+    state["civs"]["verdance"]["techs"].append("writing")
+    _offer(state, {"blueprint:writing": 1}, {}, expires_in=1)
+    for _ in range(2):
+        engine.tick(CONFIG, state)
+    assert state["offers"]["o0"]["status"] == trade.EXPIRED
+    kinds = [e["kind"] for e in state["events"] if e["civ"] == "verdance" and "o0" in e["detail"]]
+    assert kinds.count("blueprint_minted") == 1 and kinds.count("blueprint_destroyed") == 1
+
+
 def test_caravans_and_trade_orders_dont_exist_before_contact(start):
     state = copy.deepcopy(start)
     order = {"kind": "train_unit", "settlement": "verdance-0", "unit_kind": "caravan"}
     assert actions.dispatch(CONFIG, state, "verdance", order) == "unknown_unit_kind"
+    for kind in ("caravan", "zebra"):  # the same answer, so a probe can't tell a hidden unit from a made-up one
+        probe = {"kind": "train_unit", "settlement": "nowhere", "unit_kind": kind}
+        assert actions.dispatch(CONFIG, state, "verdance", probe) == "unknown_unit_kind"
     text = json.dumps(schema.json_schema(CONFIG))
     assert "caravan" not in text and "offer_trade" not in text and "respond_trade" not in text
     assert "caravan" in json.dumps(schema.json_schema(CONFIG, ["Saltreach"]))

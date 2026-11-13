@@ -51,7 +51,7 @@ def known_tiles(state: dict, civ_id: str) -> list[str]:
             for x, char in enumerate(row) if char == "1"]
 
 
-def update(config: Config, state: dict, now: int) -> None:
+def update(config: Config, state: dict, now: int, seen_from: int | None = None) -> None:
     """Step 4, after movement. Every view is worked out before anything is written, then the known
     map, then contact for each unmet pair, then foreign units and settlements in view."""
     civ_ids = sorted(state["civs"])
@@ -76,6 +76,9 @@ def update(config: Config, state: dict, now: int) -> None:
         if views[first] & holdings[second] or views[second] & holdings[first]:
             state["civs"][first]["met"][second] = now
             state["civs"][second]["met"][first] = now
+            for civ_id in (first, second):  # this tick's turns have run, so the next turn is the first to see it
+                if state["civs"][civ_id].get("first_contact_turn") is None:  # .get: older snapshots lack the field
+                    state["civs"][civ_id]["first_contact_turn"] = now + 1 if seen_from is None else seen_from
             record_event(state, now, "contact", first, second)
             record_event(state, now, "contact", second, first)
 

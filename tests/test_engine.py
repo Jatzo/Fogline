@@ -42,6 +42,11 @@ def _assert_conserved(state):
     for owner, held in escrow.items():
         for stock in ledger.STOCKS:
             assert ledger.net_change(totals, owner, stock) == held.get(stock, 0), (owner, stock)
+    # A transfer moves goods between owners, so across all owners it must net to zero.
+    for rule in (ledger.Rule.ESCROW, ledger.Rule.ESCROW_RETURN, ledger.Rule.LOADED, ledger.Rule.TRADE_DELIVERY):
+        for stock in ledger.STOCKS:
+            moved = sum(v for k, v in totals.items() if k.endswith(f":{stock}:{rule.value}"))
+            assert moved == 0, (rule.value, stock, moved)
     # An owner that no longer exists (a disbanded unit) must hold nothing of anything.
     live = set(state["civs"]) | set(state["settlements"]) | set(state["nodes"]) | set(state["units"]) | set(escrow)
     gone = {key.split(":")[0] for key in totals} - live

@@ -40,8 +40,8 @@ def _copies_a_message(config: Config, state: dict, civ_id: str, text: str) -> bo
     received, which would launder a foreign claim into the civ's own notes."""
     for received in state["civs"][civ_id]["inbox"]:
         plain = received["plain"]
-        match = SequenceMatcher(None, text.lower(), plain.lower(), autojunk=False).find_longest_match(
-            0, len(text), 0, len(plain))
+        mine, theirs = text.lower(), plain.lower()  # lowering can lengthen a string ("İ" becomes 2 characters)
+        match = SequenceMatcher(None, mine, theirs, autojunk=False).find_longest_match(0, len(mine), 0, len(theirs))
         if match.size > config.quote_chars:
             return True
     return False

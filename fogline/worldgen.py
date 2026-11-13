@@ -59,7 +59,7 @@ def generate(config: Config, seed: int) -> dict:
         except _Reroll:
             continue
         if _spacing_ok(config, state):
-            sight.update(config, state, 0)  # every civ starts knowing the land round its towns
+            sight.update(config, state, 0, seen_from=0)  # land round its towns, and any neighbour, known at turn 0
             return state
     raise WorldgenError(f"seed {seed}: no world met the spacing rules in {config.worldgen_attempts} attempts")
 
@@ -450,6 +450,7 @@ def _found_civ(config: Config, state: dict, seed: int, attempt: int, civ: str,
         "origin": "",
         "known": ["0" * config.map_size for _ in range(config.map_size)],
         "met": {},
+        "first_contact_turn": None,  # the first tick whose turn could see a met civ
         "in_view": [],
         "sites": {},
         "reorders": [],

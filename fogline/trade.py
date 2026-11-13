@@ -80,6 +80,9 @@ def _unescrow(state: dict, log: list | None, civ_id: str, offer: dict, side: str
         if amount:
             ledger.apply(held, state["ledger"], log, owner, good, -amount, Rule.ESCROW_RETURN, state["tick"])
             ledger.apply(civ["stocks"], state["ledger"], log, civ_id, good, amount, Rule.ESCROW_RETURN, state["tick"])
+    for good in sorted(offer[side]):
+        if good.startswith(BLUEPRINT):  # minted for this offer and never delivered
+            record_event(state, state["tick"], "blueprint_destroyed", civ_id, f"{good} {offer['id']}")
     for uid in offer["caravans"][side]:
         if uid in state["units"]:
             state["units"][uid]["reserved"] = ""

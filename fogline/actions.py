@@ -139,14 +139,14 @@ def allocate_workers(config: Config, state: dict, civ_id: str, allocation: dict,
 def train_unit(config: Config, state: dict, civ_id: str, settlement: str, unit_kind: str,
                log: Log = None) -> Reason | None:
     civ = state["civs"][civ_id]
+    spec = config.units.get(unit_kind)
+    if unit_kind in CONTACT_UNITS and not civ["met"]:
+        spec = None  # before contact a caravan answers like a made-up unit, whatever else is wrong
+    if spec is None:
+        return Reason.UNKNOWN_UNIT_KIND
     home = state["settlements"].get(settlement)
     if home is None or home["civ"] != civ_id:
         return Reason.NOT_OWN_SETTLEMENT
-    spec = config.units.get(unit_kind)
-    if unit_kind in CONTACT_UNITS and not civ["met"]:
-        spec = None  # before contact a caravan answers like a made-up unit
-    if spec is None:
-        return Reason.UNKNOWN_UNIT_KIND
     if spec["tech"] and spec["tech"] not in civ["techs"]:
         return Reason.TECH_MISSING
     if spec["building"] and not any(b["type"] == spec["building"] and not b["ruin"] for b in home["buildings"]):
