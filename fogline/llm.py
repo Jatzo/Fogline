@@ -175,6 +175,25 @@ class ReplayAdapter:
         return Outcome(row["status"], row["raw"])
 
 
+class Resumed:
+    """Stored answers before the resume tick, fresh calls from it on (fogline.run.resume).
+
+    A live call keeps nothing between turns, but a mock ruler keeps its memory on the adapter's
+    side, so for a mock run the stored turns are also put to it again to rebuild that memory, and
+    it must give the stored answer each time."""
+
+    def __init__(self, stored: Adapter, fresh: Adapter, resume_from: int, rebuild: Adapter | None = None):
+        self.stored, self.fresh, self.resume_from, self.rebuild = stored, fresh, resume_from, rebuild
+
+    def call(self, key: Key, observation: dict) -> Outcome:
+        if key[0] >= self.resume_from:
+            return self.fresh.call(key, observation)
+        outcome = self.stored.call(key, observation)
+        if self.rebuild and self.rebuild.call(key, observation).raw != outcome.raw:
+            raise ReplayError(f"the mock ruler no longer gives the stored answer for {key}")
+        return outcome
+
+
 def load_outputs(path: Path) -> list[dict]:
     with open(path, encoding="utf-8") as handle:
         return [json.loads(line) for line in handle if line.strip()]

@@ -1,6 +1,7 @@
 """Fixtures shared across test files."""
 
 import dataclasses
+import subprocess
 
 import pytest
 
@@ -8,6 +9,18 @@ from fogline import run
 from fogline.config import Config
 
 TOWN_RUN_TICKS = 200
+REAL_RUN = subprocess.run
+
+
+@pytest.fixture(autouse=True)
+def no_live_calls(monkeypatch):
+    """No test may start `claude`: a live call spends the operator's plan usage (CLAUDE.md).
+    A test that fakes the subprocess sets its own stand-in after this one, which wins."""
+    def guarded(argv, *args, **kwargs):
+        if argv and "claude" in str(argv[0]).lower():
+            pytest.fail(f"a test tried to start a live call: {argv[0]}")
+        return REAL_RUN(argv, *args, **kwargs)
+    monkeypatch.setattr(subprocess, "run", guarded)
 
 
 @pytest.fixture(scope="session")

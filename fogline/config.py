@@ -166,7 +166,7 @@ class Config:
     # Units (rules 6). Caravans arrive with trade in Phase 3. "army" units share the scaled upkeep;
     # "building" is a building the training settlement must have.
     units: dict[str, dict] = field(default_factory=lambda: {
-        "scout": {"cost": {"food": 15, "timber": 5}, "pop": 1, "upkeep": 1, "move": 4, "sight": 2,
+        "scout": {"cost": {"food": 15, "timber": 5}, "pop": 1, "upkeep": 1, "move": 8, "sight": 2,
                   "strength": 0, "tech": "", "building": "", "train_ticks": 1, "army": False},
         "levy": {"cost": {"food": 10, "metal": 5}, "pop": 5, "upkeep": 1, "move": 4, "sight": 2,
                  "strength": 2, "tech": "", "building": "", "train_ticks": 1, "army": True},
@@ -175,7 +175,7 @@ class Config:
         "caravan": {"cost": {"timber": 20, "food": 10}, "pop": 2, "upkeep": 1, "move": 4, "sight": 2,
                     "strength": 0, "tech": "", "building": "", "train_ticks": 1, "army": False},
     })
-    scout_move_pathfinding: int = 6
+    scout_move_pathfinding: int = 10
     scout_sight_pathfinding: int = 3
     settlement_sight: int = 2
     fortress_sight: int = 4

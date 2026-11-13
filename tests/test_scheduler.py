@@ -91,11 +91,22 @@ def test_a_mock_run_writes_outputs_that_replay_from_the_command_line(tmp_path, m
 @pytest.mark.parametrize("argv, message", [
     (["--llm", "replay"], "needs --outputs"),
     (["--llm", "live"], "needs --out"),
-    (["--llm", "live", "--llm-civs", "ironhold", "--out", "unused-run-folder"], "no culture prompt for ironhold"),
+    (["--llm", "live", "--llm-civs", "ironhold", "--out", "{tmp}"], "no culture prompt for ironhold"),
     (["--llm", "mock", "--llm-civs", "atlantis"], "no such civ"),
 ])
-def test_the_runner_refuses_an_incomplete_llm_setup(monkeypatch, capsys, argv, message):
+def test_the_runner_refuses_an_incomplete_llm_setup(monkeypatch, capsys, tmp_path, argv, message):
+    # Every civ has a culture now, so a missing one is faked; the refusal must come before any call.
+    monkeypatch.setattr(run.prompts, "has_culture", lambda civ_id: civ_id != "ironhold")
+    argv = [str(tmp_path / "run") if a == "{tmp}" else a for a in argv]
     monkeypatch.setattr(sys, "argv", ["fogline.run", "--ticks", "1", *argv])
     with pytest.raises(SystemExit) as stopped:
         run.main()
     assert stopped.value.code == 2 and message in capsys.readouterr().err
+    assert not (tmp_path / "run").exists()
+
+
+def test_a_test_that_reaches_a_live_call_fails_instead_of_calling(tmp_path):
+    # Regression (docs/debug-log.md): once Ironhold had a culture, the test above ran a real call.
+    adapter = llm.LiveAdapter(lambda civ, met: "prompt")
+    with pytest.raises(pytest.fail.Exception, match="live call"):
+        adapter.call((0, "verdance", "decide"), {"tick": 0})

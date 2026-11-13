@@ -75,7 +75,8 @@ class Failing:
 
 
 def rulers(config: Config, state: dict, bot: str, mode: str, llm_civs: list[str] | None,
-           outputs: Path | None, out: Path | None) -> tuple[dict, llm.Recorder | None]:
+           outputs: Path | None, out: Path | None,
+           resumed: tuple[list[dict], int, int, str] | None = None) -> tuple[dict, llm.Recorder | None]:
     """The deciders for a run, and the recorder if outputs are being kept.
 
     bots: every civ is a scripted bot, called directly. mock: the chosen civs are mock rulers
@@ -106,6 +107,10 @@ def rulers(config: Config, state: dict, bot: str, mode: str, llm_civs: list[str]
             inner = llm.MockAdapter({c: mock_ruler.make(config, c, state["seed"]) for c in chosen})
         recorder = llm.Recorder(inner, out / "outputs.jsonl" if out else None)
         adapter = recorder
+        if resumed:  # stored answers up to the resume tick, then fresh calls, all counted by the recorder
+            kept, resume_from = resumed[0], resumed[1]
+            recorder.rows = list(kept)
+            adapter = llm.Resumed(llm.ReplayAdapter(kept), recorder, resume_from, inner if mode == "mock" else None)
     for civ_id in chosen:
         deciders[civ_id] = llm.make_ruler(adapter, civ_id)
     return deciders, recorder
@@ -165,13 +170,16 @@ class Watch:
 
 
 def play(config: Config, seed: int, ticks: int, bot: str = "builder", out: Path | None = None, *,
-         mode: str = "bots", llm_civs: list[str] | None = None, outputs: Path | None = None) -> tuple[dict, dict]:
+         mode: str = "bots", llm_civs: list[str] | None = None, outputs: Path | None = None,
+         resumed: tuple[list[dict], int, int, str] | None = None) -> tuple[dict, dict]:
     """Run a world and return (final state, summary). With out, write the run folder as it goes.
-    The folder must be new or empty: appending to an old run would mix two runs' logs and snapshots."""
-    if out and out.exists() and any(out.iterdir()):
+    The folder must be new or empty: appending to an old run would mix two runs' logs and snapshots.
+    resumed is for resume() only: (stored outputs to answer from, the tick fresh calls start at,
+    a saved snapshot's tick and the state hash the replay must reach there)."""
+    if out and not resumed and out.exists() and any(out.iterdir()):
         raise FileExistsError(f"run folder {out} is not empty; pick a new --out")
     state = worldgen.generate(config, seed)
-    deciders, recorder = rulers(config, state, bot, mode, llm_civs, outputs, out)  # refuses a bad setup first
+    deciders, recorder = rulers(config, state, bot, mode, llm_civs, outputs, out, resumed)  # refuses a bad setup first
     if out:
         out.mkdir(parents=True, exist_ok=True)
     watch = Watch(config, state)
@@ -181,11 +189,16 @@ def play(config: Config, seed: int, ticks: int, bot: str = "builder", out: Path 
                     "llm_civs": sorted(llm_civs or state["civs"]) if mode != "bots" else [],
                     "outputs": str(outputs) if outputs else None,
                     "model": llm.MODEL if mode == "live" else None, "slice_pair": list(config.slice_pair)}
+        if resumed:
+            old = json.loads((out / "manifest.json").read_text(encoding="ascii"))
+            manifest["resumed_at"] = old.get("resumed_at", []) + [resumed[1]]
         (out / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="ascii")
         snapshot.save(state, out / "snap-00000.json.gz")
     failing = Failing() if mode == "live" else None
     for _ in range(ticks):
         now = state["tick"]
+        if resumed and now == resumed[2] and state_hash(state) != resumed[3]:
+            raise llm.ReplayError(f"the replayed world at tick {now} differs from the snapshot saved there")
         log: list | None = [] if out else None
         seen_rows = len(recorder.rows) if recorder else 0
         records = engine.tick(config, state, log, deciders=deciders)
@@ -197,6 +210,8 @@ def play(config: Config, seed: int, ticks: int, bot: str = "builder", out: Path 
             snapshot.append_lines(out / "turns.jsonl", [r.as_record() for r in records])
             if state["tick"] % config.snapshot_every == 0:
                 snapshot.save(state, out / f"snap-{state['tick']:05d}.json.gz")
+    if out and state["tick"] % config.snapshot_every:  # the last tick too, so a check can read where the run ended
+        snapshot.save(state, out / f"snap-{state['tick']:05d}.json.gz")
     summary = watch.summary(state)
     if recorder:
         for civ_id, calls in recorder.usage().items():
@@ -208,6 +223,85 @@ def play(config: Config, seed: int, ticks: int, bot: str = "builder", out: Path 
     if out:
         (out / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="ascii")
     return state, summary
+
+
+def resume_point(rows: list[dict]) -> int:
+    """The tick a stopped run carries on from. The last tick with stored outputs may have stopped
+    half way, and a run stopped by failures ends in ticks where every call failed (run out of plan
+    usage, say), so those are played again with fresh calls rather than replayed as empty turns."""
+    by_tick: dict[int, set[str]] = {}
+    for row in rows:
+        by_tick.setdefault(row["tick"], set()).add(row["status"])
+    ticks = sorted(by_tick)
+    if not ticks:
+        return 0
+    i = len(ticks) - 1
+    while i > 0 and llm.OK not in by_tick[ticks[i - 1]]:
+        i -= 1
+    return ticks[i]
+
+
+def resume(out: Path) -> tuple[dict, dict]:
+    """Carry on a stopped live or mock run in its own folder. Its stored outputs before the resume
+    tick are replayed from tick 0, each checked against the observation it answered, and the state
+    at the last snapshot before that tick must match the one saved; from the resume tick on, the
+    rulers are called afresh. The logs and snapshots are written again as the replay goes."""
+    manifest = json.loads((out / "manifest.json").read_text(encoding="ascii"))
+    if manifest["llm"] not in ("mock", "live"):
+        raise ValueError(f"only a mock or live run can be resumed, not {manifest['llm']}")
+    config = dataclasses.replace(Config(), events_enabled=manifest["events_enabled"],
+                                 supply_floor=manifest["supply"], slice_pair=tuple(manifest["slice_pair"]))
+    if config.config_hash() != manifest["config_hash"]:
+        raise ValueError("the config has changed since this run started, so it can't be resumed")
+    rows = _outputs_up_to_a_torn_line(out / "outputs.jsonl")
+    resume_from = resume_point(rows)
+    rows = sorted(rows, key=lambda r: r["tick"])  # stable, so calls within a tick keep their order
+    kept = [r for r in rows if r["tick"] < resume_from]
+    checkpoint = max((int(p.name[5:10]) for p in out.glob("snap-*.json.gz") if int(p.name[5:10]) <= resume_from),
+                     default=0)
+    expected = state_hash(snapshot.load(out / f"snap-{checkpoint:05d}.json.gz"))
+
+    # The stopped session's files go into an archive, outputs included, so no paid call is lost.
+    archive = out / f"before-resume-{len(manifest.get('resumed_at', [])) + 1}"
+    archive.mkdir()
+    moved = [p for p in [*out.glob("snap-*.json.gz"), *(out / n for n in RUN_LOGS)] if p.exists()]
+    for path in moved:
+        path.rename(archive / path.name)
+    with open(out / "outputs.jsonl", "w", encoding="utf-8") as handle:
+        handle.writelines(json.dumps(r, sort_keys=True) + "\n" for r in kept)
+    try:
+        state, summary = play(config, manifest["seed"], manifest["ticks"], manifest["bot"], out, mode=manifest["llm"],
+                              llm_civs=manifest["llm_civs"], resumed=(kept, resume_from, checkpoint, expected))
+    except llm.ReplayError:  # nothing fresh was called yet, so put the stopped session back as it was
+        for path in [*out.glob("snap-*.json.gz"), *(out / n for n in RUN_LOGS)]:
+            path.unlink(missing_ok=True)
+        for path in moved:
+            (archive / path.name).rename(path)
+        archive.rmdir()
+        (out / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="ascii")
+        raise
+    for row in rows[len(kept):]:  # calls made and paid for, then dropped to be made again
+        dropped = summary.setdefault(row["civ"], {}).setdefault("dropped_on_resume", {"calls": 0, "cost_usd": 0.0})
+        dropped["calls"] += 1
+        dropped["cost_usd"] = round(dropped["cost_usd"] + (row.get("usage") or {}).get("total_cost_usd", 0.0), 4)
+    (out / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="ascii")
+    return state, summary
+
+
+RUN_LOGS = ("outputs.jsonl", "turns.jsonl", "ledger.jsonl", "summary.json")
+
+
+def _outputs_up_to_a_torn_line(path: Path) -> list[dict]:
+    """Stored outputs, without a last line cut off half way when the run was killed mid-write."""
+    lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    rows = []
+    for number, line in enumerate(lines):
+        try:
+            rows.append(json.loads(line))
+        except ValueError:
+            if number < len(lines) - 1:
+                raise
+    return rows
 
 
 def _print(summary: dict, state: dict) -> None:
@@ -242,6 +336,9 @@ def main() -> None:
                              "live: claude -p")
     parser.add_argument("--llm-civs", help="comma-separated civs the --llm mode applies to (default: all)")
     parser.add_argument("--outputs", type=Path, help="outputs.jsonl to replay")
+    parser.add_argument("--resume", type=Path, metavar="FOLDER",
+                        help="carry on a stopped mock or live run in its own folder; other options are read "
+                             "from its manifest")
     parser.add_argument("--slice", action="store_true",
                         help="Phase 3b slice: Verdance and Saltreach start as neighbours and meet at once; "
                              "the other civs trade as scripted bots")
@@ -252,8 +349,11 @@ def main() -> None:
         args.bot = "trader"  # the slice's scripted neighbours trade
     llm_civs = [c.strip() for c in args.llm_civs.split(",")] if args.llm_civs else None
     try:
-        state, summary = play(config, args.seed, args.ticks, args.bot, args.out, mode=args.llm,
-                              llm_civs=llm_civs, outputs=args.outputs)
+        if args.resume:
+            state, summary = resume(args.resume)
+        else:
+            state, summary = play(config, args.seed, args.ticks, args.bot, args.out, mode=args.llm,
+                                  llm_civs=llm_civs, outputs=args.outputs)
     except (FileExistsError, ValueError, llm.ReplayError, llm.LiveFailure) as error:
         parser.error(str(error))
     _print(summary, state)

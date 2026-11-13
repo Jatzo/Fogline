@@ -141,5 +141,18 @@ Two reviews: contact, fog and messages; trade, escrow and the cost meter. No det
 
 Deferred, operator's call: offer ids are global, so a civ that has met only some others can see gaps from trades it isn't part of (matters once 3 or more civs trade); the market fee is rounded per caravan, so splitting cargo or small lots pays less; one trade can set any price, which then values aid and fair-trade reputation; a journal entry shows `source` and `about` before contact. Pressure mechanics are left for Phase 4 (operator's call). Not reviewed: replay code in `run.py`, `bots.py`, `mock_ruler.py`, `--slice` placement, `paths.py`, `turns.py` beyond trigger raising. No Phase 3 entry in the debug log: no non-trivial bug came up during the build.
 
+## Phase 4 readiness (2026-11-13)
+Built so the Phase 4 live run can start once the operator approves it. Nothing live has been run.
+- Cultures for Ironhold, Frostmark and Dunerunners in `prompts/cultures/`, written to the temperament dials and culture modifiers; they pass the leak checks (one caught "met" in Frostmark's first draft). **Pending approval.**
+- Contact timing: spiral scouts met first at a median of tick 96 (seeds 1 to 10). A capital ring of 19 fixed it (47) but broke 10 tuned tests and errored 11, so scouts now move 8 (10 with Pathfinding): median 55.5 on seeds 1 to 10, 49.5 on held-out seeds 11 to 20 (ADR 0009). **Pending approval:** it puts aside the spacing-first order in rules section 6. The golden hash changed for this alone.
+- `fogline/phase4.py` checks a finished run: last tick reached, 3 building types per civ, mean pairwise action-mix divergence against 0.05, first contact reported. A run now saves its last tick as a snapshot.
+- `--resume <folder>` carries on a stopped mock or live run by replaying its stored outputs from tick 0 against the last saved snapshot, then calling afresh; the stopped session is archived in the folder and restored if the replay fails (ADR 0010). Tested on the mock only.
+- Mock run, seed 1, 400 ticks, five mock rulers: completes; 1,334 calls; first contact 46 to 77; divergence 0.0558; building types 3, 4, 2, 4, 4, so the mock's Ironhold (farms and mines only) fails the building check.
+- On the M19 live slice the check reads divergence 0.012 between the two live rulers, and 2 building types each in 150 ticks.
+- Cost estimate for one live run, seed 1, 400 ticks, five live rulers: 1,519 to 1,738 calls, $197 to $305 notional (`research/phase4-cost-estimate-draft.md`). **Pending approval.**
+- A test made one real live call once Ironhold had a culture (Ironhold, 1 tick, $0.075 notional). Fixed, with a guard in `tests/conftest.py` that fails any test starting `claude` (docs/debug-log.md).
+- A review of these changes found that a failed resume could leave a replayed snapshot to check against, that dropped calls were lost from the files and the cost, that one kindless refusal wiped a turn from the action count, and four culture lines that hinted at outsiders. All fixed.
+- 337 tests.
+
 ## Next session
-Phase 4. Before each live experiment, check a tiny call's input tokens again (ADR 0007). To watch the live slice: `python -m fogline.viewer --runs runs`, pick live-slice-s1.
+Phase 4 live run, once the operator approves the three cultures, scout move 8 and the cost. Before it, check a tiny call's input tokens (ADR 0007). Command: `python -m fogline.run --seed 1 --ticks 400 --llm live --out runs/p4-live-s1`; if it stops, `python -m fogline.run --resume runs/p4-live-s1`; then `python -m fogline.phase4 runs/p4-live-s1`.

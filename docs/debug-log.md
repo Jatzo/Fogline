@@ -54,3 +54,27 @@ on seed 7.
 **The fix.** `schema.text_depth` measures bracket depth on the raw text before anything parses it, skipping brackets inside strings. Anything over 8 deep is refused as `too_deep` on every machine, so the parser never meets deep input. The `RecursionError` catch is gone.
 
 **Regression test.** The `[` × 3,000 case in `tests/test_schema.py` now expects `too_deep`. The old code returned `not_json` on Windows, so it fails there. A second test checks that brackets inside strings don't count.
+
+## 2026-11-13: a test made a real live call once every civ had a culture
+
+**What broke.** After I added culture prompts for Ironhold, Frostmark and Dunerunners, one full test run
+made a real `claude -p` call on the operator's plan login: Ironhold, 1 tick, $0.075 notional. The project
+rule is that tests make no live calls.
+
+**How I found it.** The full suite went from passing to 1 failure: `test_the_runner_refuses_an_incomplete_llm_setup`,
+which expected the runner to refuse `--llm live --llm-civs ironhold` because Ironhold had no culture. Its
+error said the run folder `unused-run-folder` wasn't empty. That folder had appeared in the repository root,
+and its `outputs.jsonl` held one `ok` reply with usage. On the earlier full run the refusal no longer fired,
+so the runner went on, made the call and wrote the folder; the rerun then hit the folder.
+
+The test leaned on a fact about the content (a civ without a culture) to keep the live path shut, and
+nothing else stood between the test suite and `claude`.
+
+**The fix.** The test now fakes a missing culture and writes into a temporary folder, and checks that no
+folder was made. `tests/conftest.py` has an autouse guard: any test that starts a process named `claude`
+fails at once. Tests that fake the subprocess set their own stand-in, which takes precedence. The stray
+folder is kept, gitignored, in `runs/accidental-live-call-ironhold`.
+
+**Regression test.** `test_a_test_that_reaches_a_live_call_fails_instead_of_calling` in
+`tests/test_scheduler.py` builds a real `LiveAdapter` and calls it; the guard fails the test before any
+process starts.
