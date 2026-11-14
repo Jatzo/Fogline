@@ -121,6 +121,8 @@ def record(folder: Path, out: Path, fps: int, chromium: Path | None) -> tuple[Pa
                                       " readout: document.getElementById('readout').textContent})")
                 page.screenshot(path=str(out.with_suffix(".stuck.png")))
                 raise RuntimeError(f"year {index} (tick {tick}) never finished loading: {shown}; console: {errors[-3:]}") from error
+            # The film shows the map and what the rulers did, so the side panel is scrolled to the feed.
+            page.evaluate("() => document.getElementById('feed-title').scrollIntoView({block: 'start'})")
             page.wait_for_timeout(SETTLE_MS)
             page.screenshot(path=str(frames / f"f{index + 1:05d}.png"))
         browser.close()
