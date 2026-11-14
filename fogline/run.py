@@ -270,7 +270,7 @@ def resume(out: Path) -> tuple[dict, dict]:
                                  supply_floor=manifest["supply"], slice_pair=tuple(manifest["slice_pair"]))
     if config.config_hash() != manifest["config_hash"]:
         raise ValueError("the config has changed since this run started, so it can't be resumed")
-    rows = _outputs_up_to_a_torn_line(out / "outputs.jsonl")
+    rows = read_jsonl(out / "outputs.jsonl")
     resume_from = resume_point(rows)
     rows = sorted(rows, key=lambda r: r["tick"])  # stable, so calls within a tick keep their order
     kept = [r for r in rows if r["tick"] < resume_from]
@@ -321,8 +321,8 @@ def manifest_models(manifest: dict) -> dict[str, str]:
 RUN_LOGS = ("outputs.jsonl", "turns.jsonl", "ledger.jsonl", "summary.json")
 
 
-def _outputs_up_to_a_torn_line(path: Path) -> list[dict]:
-    """Stored outputs, without a last line cut off half way when the run was killed mid-write."""
+def read_jsonl(path: Path) -> list[dict]:
+    """A run log's rows, without a last line cut off half way when the run was killed mid-write."""
     lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
     rows = []
     for number, line in enumerate(lines):

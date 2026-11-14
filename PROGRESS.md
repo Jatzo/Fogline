@@ -173,5 +173,10 @@ The Phase 4 live run started (tiny call: 1,098 input tokens, so safe mode holds)
 
 The seed-3 mixed run (`runs/p4-mix-s3`) stopped at tick 19, and its resume stopped the same way: `claude -p` answered "Credit balance is too low". 47 calls, $0.55 at list prices; Sonnet and Opus wrote about 240 to 550 output tokens a call against Haiku's 2,300 to 2,500, on 6 to 11 calls a civ. 361 tests.
 
+## Seed 3 finished, seeds 1 and 2 started, model evidence pack (2026-11-14)
+The seed-3 mixed run reached tick 400: 1,404 calls (one failed), $36.99 at list prices (Opus $20.95, Sonnet $12.64, Haiku $3.41). It crashed writing its summary (debug log) and a resume wrote it. Phase 4 check: reached the last tick and divergence 0.1008 passed; building types failed, with only Ironhold at three. The README opens with its time-lapse. Seeds 1 and 2 started live the same evening (`runs/p4-mix-s1`, `runs/p4-mix-s2`).
+
+`python -m fogline.evidence <run folders> --out research/model-behaviour-evidence-draft.md` writes an evidence pack on how each model behaved, progressed and learned: progress every 50 ticks, actions before and after contact, refusals per 50 ticks, strategy openings at fixed ticks, effort and cost, and a pooled table per model across runs. Numbers only; the plan was critiqued before building. The draft covers seed 3; regenerate it with all three runs when seeds 1 and 2 finish. 371 tests.
+
 ## Next session
 Pick the first mixed run's seed (seed 3 is the 2-2-1 roster, about $109 notional) and confirm the estimate; tiny call per model first (ADR 0007); check the first 20 ticks against the estimate. Command: `python -m fogline.run --seed 3 --ticks 400 --llm live --out runs/p4-mix-s3`. The all-Haiku seed-1 run `runs/p4-live-s1` can be resumed as a baseline with `python -m fogline.run --resume runs/p4-live-s1`. Once the account has credit, resume it with `python -m fogline.run --resume runs/p4-mix-s3`. Then record the README time-lapse from it (map and feed, approved).
