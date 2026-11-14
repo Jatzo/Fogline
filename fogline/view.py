@@ -4,6 +4,7 @@ Plain functions over a state dict. They copy what the map needs and never change
 the viewer tests hold that with the state hash.
 """
 
+from fogline import reputation
 from fogline.config import Config
 from fogline.state import parse_tile_key
 from fogline.techs import TECHS
@@ -49,6 +50,9 @@ def frame(state: dict) -> dict:
                   for _, n in sorted(state["nodes"].items())],
         "units": [{"civ": u["civ"], "kind": u["kind"], "tile": u["tile"]}
                   for _, u in sorted(state["units"].items())],
-        "civs": {civ_id: {"techs": len(civ["techs"]), "stability": civ["stability"]}
+        # The operator's view: stocks, and how each civ regards the ones it has met, as the word a ruler sees.
+        "civs": {civ_id: {"techs": len(civ["techs"]), "stability": civ["stability"], "stocks": dict(civ["stocks"]),
+                          "standing": {other: reputation.word(value)
+                                       for other, value in sorted(state["reputation"][civ_id].items()) if other in civ["met"]}}
                  for civ_id, civ in sorted(state["civs"].items())},
     }

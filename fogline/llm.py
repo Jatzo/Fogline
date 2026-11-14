@@ -42,10 +42,24 @@ class Outcome:
 USAGE_FIELDS = ("input_tokens", "output_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")
 
 
+def _count(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
 def _usage(envelope: dict) -> dict | None:
     counts = envelope.get("usage") if isinstance(envelope.get("usage"), dict) else {}
-    kept = {k: counts[k] for k in USAGE_FIELDS
-            if isinstance(counts.get(k), int) and not isinstance(counts.get(k), bool)}
+    kept = {k: counts[k] for k in USAGE_FIELDS if _count(counts.get(k))}
+    # The cache writes split by lifetime, so a call can be priced exactly (fogline/pricing.py).
+    split = counts.get("cache_creation") if isinstance(counts.get("cache_creation"), dict) else {}
+    for field, name in (("ephemeral_1h_input_tokens", "cache_write_1h"), ("ephemeral_5m_input_tokens", "cache_write_5m")):
+        if _count(split.get(field)):
+            kept[name] = split[field]
+    # Which model answered, when the envelope names exactly one; recorded, never trusted for a price.
+    answered = envelope.get("modelUsage")
+    if isinstance(answered, dict) and len(answered) == 1:
+        model = next(iter(answered))
+        if isinstance(model, str) and len(model) <= 64:
+            kept["answered_by"] = model
     cost = envelope.get("total_cost_usd")
     if isinstance(cost, (int, float)) and not isinstance(cost, bool):
         kept["total_cost_usd"] = cost
@@ -91,13 +105,17 @@ class LiveAdapter:
     tools, no MCP servers and no saved session. Without safe mode, Claude Code builds the
     operator's own instructions and hook output into every call (ADR 0007)."""
 
-    def __init__(self, prompt_for: Callable[[str, list[str]], str], model: str = MODEL, timeout: float = 90.0,
-                 command: tuple[str, ...] = ("claude",)):
-        """prompt_for(civ, met names) gives the civ's system prompt; it changes as the civ meets others."""
-        self.prompt_for, self.model, self.timeout, self.command = prompt_for, model, timeout, command
+    def __init__(self, prompt_for: Callable[[str, list[str]], str], models: dict[str, str] | None = None,
+                 timeout: float = 90.0, command: tuple[str, ...] = ("claude",)):
+        """prompt_for(civ, met names) gives the civ's system prompt; it changes as the civ meets others.
+        models says which model rules each civ (the run's roster); a civ it doesn't name gets MODEL."""
+        self.prompt_for, self.models, self.timeout, self.command = prompt_for, models or {}, timeout, command
+
+    def model_for(self, civ: str) -> str:
+        return self.models.get(civ, MODEL)
 
     def call(self, key: Key, observation: dict) -> Outcome:
-        argv = [*self.command, "-p", "--safe-mode", "--model", self.model, "--output-format", "json",
+        argv = [*self.command, "-p", "--safe-mode", "--model", self.model_for(key[1]), "--output-format", "json",
                 "--system-prompt", self.prompt_for(key[1], prompts.met_names(observation)), "--tools", "",
                 "--strict-mcp-config",
                 "--no-session-persistence"]
@@ -132,6 +150,9 @@ class Recorder:
         tick, civ, step = key
         row = {"tick": tick, "civ": civ, "step": step, "status": outcome.status, "raw": outcome.raw,
                "obs_hash": state_hash(observation), "usage": outcome.usage}
+        model_for = getattr(self.inner, "model_for", None)
+        if model_for:  # live calls only: the model asked for, which prices the call
+            row["model"] = model_for(civ)
         with self.lock:
             self.rows.append(row)
             if self.path:

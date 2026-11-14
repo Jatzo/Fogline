@@ -1,5 +1,23 @@
 # M19 cost draft (numbers only)
 
+**Corrected 2026-11-14.** The dollar figures in the tables below are `claude -p`'s `total_cost_usd`, which priced claude-haiku-5-5 at Opus 5.5 rates. At Haiku 5.5 list prices (`fogline/pricing.py`, cache writes as 1-hour):
+
+| Run | Calls | Reported | At Haiku 5.5 list prices | Per call |
+|---|---|---|---|---|
+| live-slice-s1 | 266 | $46.28 | $1.16 | $0.0044 |
+| live-baseline-s1 | 237 | $35.55 | $0.89 | $0.0038 |
+
+| Run | Civ | Phase | Ticks | Calls | Cost | Cost per 100 ticks |
+|---|---|---|---|---|---|---|
+| live-slice-s1 | Saltreach | after | 150 | 132 | $0.59 | $0.40 |
+| live-slice-s1 | Verdance | after | 150 | 134 | $0.57 | $0.38 |
+| live-baseline-s1 | Saltreach | before | 30 | 15 | $0.03 | $0.10 |
+| live-baseline-s1 | Saltreach | after | 120 | 111 | $0.52 | $0.43 |
+| live-baseline-s1 | Verdance | before | 34 | 18 | $0.03 | $0.09 |
+| live-baseline-s1 | Verdance | after | 116 | 93 | $0.32 | $0.27 |
+
+The token counts and call counts below are unchanged.
+
 Seed 1, 150 ticks, Verdance and Saltreach as live rulers on `claude-haiku-5-5` through `claude -p --safe-mode`, the other three civs scripted traders. Costs are the notional `total_cost_usd` reported per call, run on the plan login, not billed. Raw outputs stay in `runs/` (gitignored). Both runs replay exactly to their tick-148 snapshots.
 
 ## Per run

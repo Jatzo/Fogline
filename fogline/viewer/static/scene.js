@@ -1,4 +1,4 @@
-// The world as a carved block on a walnut table, in three.js. It reads a run's world once and each
+// The world as a carved block on a slate table, in three.js. It reads a run's world once and each
 // frame after; it never changes a run. Town names are engine-made, so they may be painted into a
 // texture; no agent text is drawn here.
 
@@ -9,8 +9,8 @@ import {
   centreHeight, cornerHeights, hash, hexRGB, mix, noise, seatLayout, tileRGB, tileXY,
 } from "./world3d.js";
 
-const TABLE_RGB = "#2b1e16";
-const PAGE = "#1a120d";
+const TABLE_RGB = "#2a3138";
+const PAGE = "#1e2429";
 const BRASS = "#c9a24a";
 const MAX_PARTS = 6000;   // boxes, roofs and cones each; a 400-tick run uses well under this
 const PULSE_MS = 900;
@@ -30,8 +30,8 @@ function prismGeometry() {
   return g;
 }
 
-// A wood-grain texture for the table, drawn from the tile hash.
-function walnut() {
+// A slate texture for the table: fine, even speckle with faint cleavage lines, from the tile hash.
+function slate() {
   const canvas = document.createElement("canvas");
   canvas.width = 512;
   canvas.height = 512;
@@ -40,8 +40,7 @@ function walnut() {
   const image = g.createImageData(512, 512);
   for (let y = 0; y < 512; y++) {
     for (let x = 0; x < 512; x++) {
-      const grain = Math.sin((x + noise(x / 60, y / 9, 31) * 40) * 0.18) * 0.5 + 0.5;
-      const k = 0.78 + grain * 0.22 + (noise(x / 6, y / 140, 32) - 0.5) * 0.12;
+      const k = 0.9 + (noise(x / 3, y / 3, 41) - 0.5) * 0.12 + (noise(x / 90, y / 14, 42) - 0.5) * 0.08;
       const i = (y * 512 + x) * 4;
       image.data[i] = base[0] * k;
       image.data[i + 1] = base[1] * k;
@@ -53,32 +52,44 @@ function walnut() {
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(6, 6);
+  texture.repeat.set(8, 8);
   return texture;
 }
 
-// A town's name card, painted once per town and kept.
-function placard(name) {
+// A town's name card: its name and ruler on one line, its stage and people below. The text is
+// made by the engine and the viewer, never by a ruler.
+function placard([title, sub], capital) {
   const canvas = document.createElement("canvas");
   const g = canvas.getContext("2d");
-  const font = "500 44px 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif";
-  g.font = font;
-  const width = Math.ceil(g.measureText(name).width) + 36;
+  const big = "500 44px 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif";
+  const small = "400 32px 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif";
+  const high = sub ? 108 : 68;
+  g.font = big;
+  let width = g.measureText(title).width;
+  g.font = small;
+  width = Math.ceil(Math.max(width, sub ? g.measureText(sub).width : 0)) + 36;
   canvas.width = width;
-  canvas.height = 68;
-  g.font = font;
+  canvas.height = high;
   g.fillStyle = "rgba(233,223,201,0.92)";
-  g.fillRect(0, 0, width, 68);
+  g.fillRect(0, 0, width, high);
   g.strokeStyle = "rgba(43,30,22,0.8)";
   g.lineWidth = 3;
-  g.strokeRect(1.5, 1.5, width - 3, 65);
+  g.strokeRect(1.5, 1.5, width - 3, high - 3);
   g.fillStyle = "#2b1e16";
   g.textBaseline = "middle";
-  g.fillText(name, 18, 36);
+  g.font = big;
+  g.fillText(title, 18, 36);
+  if (sub) {
+    g.fillStyle = "#5a4636";
+    g.font = small;
+    g.fillText(sub, 18, 80);
+  }
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, depthWrite: false }));
-  sprite.scale.set((width / 68) * 0.55, 0.55, 1);
+  // A fixed size on screen, so a card can be read at any zoom; capitals a little larger.
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, depthWrite: false, sizeAttenuation: false }));
+  const tall = capital ? 0.026 : 0.014;   // a share of the screen's height
+  sprite.scale.set((width / high) * tall, tall, 1);
   sprite.center.set(0.5, 0);
   return sprite;
 }
@@ -113,7 +124,7 @@ class Parts {
   }
 }
 
-export function createScene(container, { onPick, onHover }) {
+export function createScene(container, { onPick, onHover, labelFor }) {
   const renderer = new THREE.WebGLRenderer({ antialias: true });   // throws where WebGL is missing
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
@@ -142,7 +153,7 @@ export function createScene(container, { onPick, onHover }) {
   scene.add(sun, sun.target);
 
   const table = new THREE.Mesh(new THREE.PlaneGeometry(700, 700),
-                               new THREE.MeshStandardMaterial({ map: walnut(), roughness: 0.62 }));
+                               new THREE.MeshStandardMaterial({ map: slate(), roughness: 0.8 }));
   table.rotation.x = -Math.PI / 2;
   table.position.y = TABLE_LEVEL;
   table.receiveShadow = true;
@@ -166,7 +177,8 @@ export function createScene(container, { onPick, onHover }) {
   let land = null, landColors = null, baseRGB = null, borders = null, water = null, walls = null;
   let trees = [];          // { kind, x, z, y, s, turn, color, tile }
   let frame = null, selected = null;
-  const signs = new Map(); // settlement id -> sprite
+  const signs = new Map(); // settlement id -> { sprite, text }
+  let links = null;        // this year's messages and offers, as arcs between capitals
   let pulses = [];         // { mesh, start }
   let wanted = true;
 
@@ -174,6 +186,42 @@ export function createScene(container, { onPick, onHover }) {
   const groundY = (x, y) => Math.max(centreHeight(world, x, y), WATER_LEVEL);
 
   function requestRender() { wanted = true; }
+
+  function disposeSign(sprite) {
+    scene.remove(sprite);
+    sprite.material.map.dispose();
+    sprite.material.dispose();
+  }
+
+  // Arcs from each sender's capital to the receiver's, in the sender's colour.
+  function drawLinks(list) {
+    disposeOf(links);
+    links = null;
+    if (!frame || !list.length) return;
+    const capital = new Map(frame.settlements.filter((t) => t.capital).map((t) => [t.civ, t]));
+    const seen = new Set(), points = [], colors = [];
+    for (const { from, to } of list) {
+      const a = capital.get(from), b = capital.get(to);
+      if (!a || !b || seen.has(`${from}>${to}`)) continue;
+      seen.add(`${from}>${to}`);
+      const pa = tileXY(a.tile), pb = tileXY(b.tile);
+      const start = new THREE.Vector3(pa.x - half + 0.5, groundY(pa.x, pa.y) + 0.4, pa.y - half + 0.5);
+      const end = new THREE.Vector3(pb.x - half + 0.5, groundY(pb.x, pb.y) + 0.4, pb.y - half + 0.5);
+      const mid = start.clone().lerp(end, 0.5);
+      mid.y += 3 + start.distanceTo(end) * 0.22;
+      const curve = new THREE.QuadraticBezierCurve3(start, mid, end).getPoints(32);
+      const c = srgb(hexRGB(INK[from]));
+      for (let i = 0; i < curve.length - 1; i++) {
+        points.push(curve[i].x, curve[i].y, curve[i].z, curve[i + 1].x, curve[i + 1].y, curve[i + 1].z);
+        colors.push(c.r, c.g, c.b, c.r, c.g, c.b);
+      }
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(points, 3));
+    geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+    links = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ vertexColors: true }));
+    scene.add(links);
+  }
 
   function disposeOf(mesh) {
     if (!mesh) return;
@@ -421,19 +469,23 @@ export function createScene(container, { onPick, onHover }) {
     const here = new Set();
     for (const t of frame.settlements) {
       here.add(t.id);
-      let sign = signs.get(t.id);
-      if (!sign) {
-        sign = placard(t.name);
-        signs.set(t.id, sign);
-        scene.add(sign);
+      const lines = labelFor ? labelFor(t) : [t.name, t.stage];
+      const text = lines.join("\n");
+      let held = signs.get(t.id);
+      if (!held || held.text !== text) {   // a card is repainted only when its words change
+        if (held) disposeSign(held.sprite);
+        held = { sprite: placard(lines, t.capital), text };
+        signs.set(t.id, held);
+        scene.add(held.sprite);
       }
+      const sign = held.sprite;
       const { x, y } = tileXY(t.tile);
       const { x: wx, z: wz } = at(x, y);
       const step = STAGE_ORDER.indexOf(t.stage);
       sign.position.set(wx, groundY(x, y) + (t.capital ? 2.6 : 1.3) + step * 0.15, wz);
       sign.visible = true;
     }
-    for (const [id, sign] of signs) if (!here.has(id)) sign.visible = false;
+    for (const [id, held] of signs) if (!here.has(id)) held.sprite.visible = false;
   }
 
   function placeRing() {
@@ -462,7 +514,9 @@ export function createScene(container, { onPick, onHover }) {
 
   function frameCamera() {
     // The block fills the view with its front edge and strata showing, seen from the table's edge.
-    camera.position.set(0, size * 0.95, size * 1.24);
+    // Further back in a narrow view, so the whole block fits whatever the scene's shape.
+    const back = Math.min(2.4, Math.max(1, 2.1 / camera.aspect));
+    camera.position.set(0, size * 0.95 * back, size * 1.24 * back);
     controls.target.set(0, -4, size * 0.13);
     controls.update();
     sun.position.set(-size * 0.6, size * 1.1, size * 0.35);
@@ -537,8 +591,10 @@ export function createScene(container, { onPick, onHover }) {
   return {
     load(nextWorld) {
       for (const mesh of [land, walls, water, borders]) disposeOf(mesh);
-      for (const sign of signs.values()) { scene.remove(sign); sign.material.map.dispose(); sign.material.dispose(); }
+      for (const held of signs.values()) disposeSign(held.sprite);
       signs.clear();
+      disposeOf(links);
+      links = null;
       borders = null;
       world = nextWorld;
       size = world.size;
@@ -565,6 +621,10 @@ export function createScene(container, { onPick, onHover }) {
     select(id) {
       selected = id;
       if (frame) placeRing();
+      requestRender();
+    },
+    links(list) {
+      drawLinks(list);
       requestRender();
     },
     resetView() {

@@ -11,7 +11,7 @@ import dataclasses
 import json
 from pathlib import Path
 
-from fogline import bots, engine, llm, prompts, snapshot, techs, units, worldgen
+from fogline import bots, engine, llm, pricing, prompts, snapshot, techs, units, worldgen
 from fogline.agents import mock_ruler
 from fogline.config import Config
 from fogline.state import state_hash
@@ -27,11 +27,23 @@ def deciders_for(config: Config, state: dict, bot: str = "builder") -> dict:
 
 
 LLM_MODES = ("bots", "mock", "replay", "live")
+# The models a live run's rulers are drawn from, rotated by seed (PLAN section 1, ADR 0012).
+ROSTER = ("claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5")
+
+
+def roster(models: tuple[str, ...], llm_civs: list[str], seed: int) -> dict[str, str]:
+    """Which model rules each live civ: the i-th in sorted order gets models[(i + seed) % len].
+    Over len(models) seeds every civ plays every model once, so a model's effect can be told
+    apart from a culture's. Worked out once when a run starts and kept in its manifest."""
+    for model in models:
+        pricing.rates_for(model)   # an unpriced model is refused before any call
+    return {civ: models[(i + seed) % len(models)] for i, civ in enumerate(sorted(llm_civs))}
 SLICE_PAIR = ("verdance", "saltreach")  # Phase 3b (operator's choice, rules 21)
 FAILED_TICKS_TO_STOP = {llm.ERROR: 3, llm.TIMEOUT: 5}  # ticks in a row where every live call failed
 
 
-def cost_meter(rows: list[dict], state: dict, start_tick: int, end_tick: int) -> dict[str, dict]:
+def cost_meter(rows: list[dict], state: dict, start_tick: int, end_tick: int,
+               models: dict[str, str] | None = None) -> dict[str, dict]:
     """Per civ: calls, tokens and cost before and after its first contact, each also per 100 ticks
     of that stretch, with the call counts behind every figure (PLAN section 10, Phase 3b)."""
     meter = {}
@@ -47,7 +59,7 @@ def cost_meter(rows: list[dict], state: dict, start_tick: int, end_tick: int) ->
                 usage = row.get("usage") or {}
                 spent["input_tokens"] += usage.get("input_tokens", 0) + usage.get("cache_creation_input_tokens", 0)                     + usage.get("cache_read_input_tokens", 0)
                 spent["output_tokens"] += usage.get("output_tokens", 0)
-                spent["cost_usd"] += usage.get("total_cost_usd", 0.0)
+                spent["cost_usd"] += pricing.row_cost(row, (models or {}).get(civ_id, pricing.DEFAULT_MODEL))
             if spent["ticks"] > 0:
                 spent["per_100_ticks"] = {"calls": round(spent["calls"] * 100 / spent["ticks"], 1),
                                           "cost_usd": round(spent["cost_usd"] * 100 / spent["ticks"], 4)}
@@ -76,7 +88,8 @@ class Failing:
 
 def rulers(config: Config, state: dict, bot: str, mode: str, llm_civs: list[str] | None,
            outputs: Path | None, out: Path | None,
-           resumed: tuple[list[dict], int, int, str] | None = None) -> tuple[dict, llm.Recorder | None]:
+           resumed: tuple[list[dict], int, int, str] | None = None,
+           models: dict[str, str] | None = None) -> tuple[dict, llm.Recorder | None]:
     """The deciders for a run, and the recorder if outputs are being kept.
 
     bots: every civ is a scripted bot, called directly. mock: the chosen civs are mock rulers
@@ -102,7 +115,7 @@ def rulers(config: Config, state: dict, bot: str, mode: str, llm_civs: list[str]
             missing = [c for c in chosen if not prompts.has_culture(c)]
             if missing:
                 raise ValueError(f"no culture prompt for {', '.join(missing)}; choose civs with --llm-civs")
-            inner: llm.Adapter = llm.LiveAdapter(lambda civ, met: prompts.system_prompt(config, civ, met))
+            inner: llm.Adapter = llm.LiveAdapter(lambda civ, met: prompts.system_prompt(config, civ, met), models)
         else:
             inner = llm.MockAdapter({c: mock_ruler.make(config, c, state["seed"]) for c in chosen})
         recorder = llm.Recorder(inner, out / "outputs.jsonl" if out else None)
@@ -171,15 +184,19 @@ class Watch:
 
 def play(config: Config, seed: int, ticks: int, bot: str = "builder", out: Path | None = None, *,
          mode: str = "bots", llm_civs: list[str] | None = None, outputs: Path | None = None,
-         resumed: tuple[list[dict], int, int, str] | None = None) -> tuple[dict, dict]:
+         resumed: tuple[list[dict], int, int, str] | None = None,
+         models: tuple[str, ...] | dict[str, str] = ROSTER) -> tuple[dict, dict]:
     """Run a world and return (final state, summary). With out, write the run folder as it goes.
     The folder must be new or empty: appending to an old run would mix two runs' logs and snapshots.
     resumed is for resume() only: (stored outputs to answer from, the tick fresh calls start at,
-    a saved snapshot's tick and the state hash the replay must reach there)."""
+    a saved snapshot's tick and the state hash the replay must reach there). models is the list a
+    live run's roster is drawn from, or a finished roster (a resumed run's)."""
     if out and not resumed and out.exists() and any(out.iterdir()):
         raise FileExistsError(f"run folder {out} is not empty; pick a new --out")
     state = worldgen.generate(config, seed)
-    deciders, recorder = rulers(config, state, bot, mode, llm_civs, outputs, out, resumed)  # refuses a bad setup first
+    chosen = sorted(llm_civs or state["civs"])
+    ruled = (dict(models) if isinstance(models, dict) else roster(tuple(models), chosen, seed)) if mode == "live" else {}
+    deciders, recorder = rulers(config, state, bot, mode, llm_civs, outputs, out, resumed, ruled)  # refuses a bad setup first
     if out:
         out.mkdir(parents=True, exist_ok=True)
     watch = Watch(config, state)
@@ -188,7 +205,7 @@ def play(config: Config, seed: int, ticks: int, bot: str = "builder", out: Path 
                     "events_enabled": config.events_enabled, "supply": config.supply_floor, "llm": mode,
                     "llm_civs": sorted(llm_civs or state["civs"]) if mode != "bots" else [],
                     "outputs": str(outputs) if outputs else None,
-                    "model": llm.MODEL if mode == "live" else None, "slice_pair": list(config.slice_pair)}
+                    "models": ruled, "slice_pair": list(config.slice_pair)}
         if resumed:
             old = json.loads((out / "manifest.json").read_text(encoding="ascii"))
             manifest["resumed_at"] = old.get("resumed_at", []) + [resumed[1]]
@@ -218,7 +235,7 @@ def play(config: Config, seed: int, ticks: int, bot: str = "builder", out: Path 
             summary[civ_id]["calls"] = calls
         for civ_id, spent in recorder.tokens().items():
             summary[civ_id]["tokens"] = spent
-        for civ_id, metered in cost_meter(recorder.rows, state, 0, state["tick"]).items():
+        for civ_id, metered in cost_meter(recorder.rows, state, 0, state["tick"], ruled).items():
             summary[civ_id]["cost"] = metered
     if out:
         (out / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="ascii")
@@ -271,7 +288,8 @@ def resume(out: Path) -> tuple[dict, dict]:
         handle.writelines(json.dumps(r, sort_keys=True) + "\n" for r in kept)
     try:
         state, summary = play(config, manifest["seed"], manifest["ticks"], manifest["bot"], out, mode=manifest["llm"],
-                              llm_civs=manifest["llm_civs"], resumed=(kept, resume_from, checkpoint, expected))
+                              llm_civs=manifest["llm_civs"], resumed=(kept, resume_from, checkpoint, expected),
+                              models=manifest_models(manifest))
     except llm.ReplayError:  # nothing fresh was called yet, so put the stopped session back as it was
         for path in [*out.glob("snap-*.json.gz"), *(out / n for n in RUN_LOGS)]:
             path.unlink(missing_ok=True)
@@ -280,12 +298,24 @@ def resume(out: Path) -> tuple[dict, dict]:
         archive.rmdir()
         (out / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="ascii")
         raise
+    ruled = manifest_models(manifest)
     for row in rows[len(kept):]:  # calls made and paid for, then dropped to be made again
         dropped = summary.setdefault(row["civ"], {}).setdefault("dropped_on_resume", {"calls": 0, "cost_usd": 0.0})
         dropped["calls"] += 1
-        dropped["cost_usd"] = round(dropped["cost_usd"] + (row.get("usage") or {}).get("total_cost_usd", 0.0), 4)
+        price = pricing.row_cost(row, ruled.get(row["civ"], pricing.DEFAULT_MODEL))
+        dropped["cost_usd"] = round(dropped["cost_usd"] + price, 4)
     (out / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="ascii")
     return state, summary
+
+
+def manifest_models(manifest: dict) -> dict[str, str]:
+    """A run's roster as its manifest records it. Runs from before the roster named one model
+    for every ruler, or none (claude-haiku-5-5)."""
+    if manifest.get("models"):
+        return dict(manifest["models"])
+    if manifest.get("llm") != "live":
+        return {}
+    return {civ: manifest.get("model") or pricing.DEFAULT_MODEL for civ in manifest.get("llm_civs", [])}
 
 
 RUN_LOGS = ("outputs.jsonl", "turns.jsonl", "ledger.jsonl", "summary.json")
@@ -336,6 +366,8 @@ def main() -> None:
                              "live: claude -p")
     parser.add_argument("--llm-civs", help="comma-separated civs the --llm mode applies to (default: all)")
     parser.add_argument("--outputs", type=Path, help="outputs.jsonl to replay")
+    parser.add_argument("--models", help="comma-separated models a live run's rulers are drawn from, rotated by "
+                                          f"seed (default: {','.join(ROSTER)}); one model rules every civ")
     parser.add_argument("--resume", type=Path, metavar="FOLDER",
                         help="carry on a stopped mock or live run in its own folder; other options are read "
                              "from its manifest")
@@ -352,9 +384,10 @@ def main() -> None:
         if args.resume:
             state, summary = resume(args.resume)
         else:
+            models = tuple(m.strip() for m in args.models.split(",")) if args.models else ROSTER
             state, summary = play(config, args.seed, args.ticks, args.bot, args.out, mode=args.llm,
-                                  llm_civs=llm_civs, outputs=args.outputs)
-    except (FileExistsError, ValueError, llm.ReplayError, llm.LiveFailure) as error:
+                                  llm_civs=llm_civs, outputs=args.outputs, models=models)
+    except (FileExistsError, ValueError, llm.ReplayError, llm.LiveFailure, pricing.UnknownModel) as error:
         parser.error(str(error))
     _print(summary, state)
 

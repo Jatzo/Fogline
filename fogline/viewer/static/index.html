@@ -16,7 +16,7 @@
     </div>
   </main>
 
-  <div class="rail">
+  <div class="side">
     <section class="col run" aria-labelledby="run-title">
       <h1 id="run-title">Fogline</h1>
       <label class="pick">
@@ -24,6 +24,7 @@
         <select id="run"></select>
       </label>
       <p id="run-note" class="note"></p>
+      <p id="live" class="note live" aria-live="polite"></p>
       <div class="time">
         <button id="back" type="button" aria-label="Back a year">&#8249;</button>
         <button id="play" type="button">Play</button>
@@ -43,15 +44,18 @@
     <section class="col" aria-labelledby="civs-title">
       <h2 id="civs-title">Civilisations</h2>
       <ol id="civs" class="civs"></ol>
+      <p id="civs-total" class="note"></p>
     </section>
 
-    <section class="col">
+    <section class="col" aria-labelledby="feed-title">
       <section id="town" class="town" aria-labelledby="town-title" hidden>
         <h2 id="town-title"></h2>
         <p id="town-sub" class="note"></p>
         <dl id="town-facts" class="facts"></dl>
       </section>
-      <p id="town-hint" class="note">Click a town on the block to read about it.</p>
+      <h2 id="feed-title">What they did</h2>
+      <p id="town-hint" class="note">Click a town on the block to read about it. Lines on the block are this year's messages and offers.</p>
+      <ol id="feed" class="feed"></ol>
     </section>
 
     <section class="col turn" aria-labelledby="turn-title">

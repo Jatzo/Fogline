@@ -78,3 +78,13 @@ folder is kept, gitignored, in `runs/accidental-live-call-ironhold`.
 **Regression test.** `test_a_test_that_reaches_a_live_call_fails_instead_of_calling` in
 `tests/test_scheduler.py` builds a real `LiveAdapter` and calls it; the guard fails the test before any
 process starts.
+
+## 2026-11-14: every recorded cost was about 40 times too high
+
+**What broke.** The cost meter, the viewer and the M19 and Phase 4 cost drafts all used the `total_cost_usd` that `claude -p` reports. For `claude-haiku-5-5` that figure is priced at Opus 5.5 rates. The M19 slice was recorded at $46.28 notional; at Haiku 5.5's list prices it cost $1.16.
+
+**How I found it.** The operator asked what a mix of models would cost. At list prices a Haiku call with the token counts we had measured (about 6,200 output tokens) should cost about $0.004, but the recorded average was $0.17, a figure close to Opus pricing. A tiny live call printed its `modelUsage`: the model was `claude-haiku-5-5`, first party, with `costBasis: "unknown"`, and its $0.00954 matched Opus 5.5's 1-hour cache-write and output rates exactly. Recomputing every stored M19 row at Opus 5.5 rates reproduced each reported cost to the cent (0.0% worst row).
+
+**The fix.** `fogline/pricing.py` holds list prices per model with the date they were read, and every call is priced from its token counts. The recorder now keeps the model asked for and the 1-hour/5-minute split of cache writes. The reported figure is kept as a record only. The cost drafts and ADR 0007 are corrected.
+
+**Regression test.** `test_a_haiku_call_is_priced_from_the_table_not_from_what_claude_p_reported` in `tests/test_pricing.py` prices the tiny call's usage: Opus rates give the reported $0.00954, Haiku's give $0.00024. Locally, `test_the_m19_costs_claude_p_reported_are_opus_prices_to_the_cent` checks the stored M19 rows.

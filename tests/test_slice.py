@@ -30,8 +30,8 @@ def test_the_cost_meter_splits_calls_and_cost_at_first_contact():
     state = worldgen.generate(Config(), 1)
     state["civs"]["verdance"]["met"]["ironhold"] = 40
     state["civs"]["verdance"]["first_contact_turn"] = 41  # met in tick 40's sight pass, after its turn
-    usage = {"input_tokens": 10, "output_tokens": 5, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0,
-             "total_cost_usd": 0.01}
+    usage = {"input_tokens": 10, "output_tokens": 20_000, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0,
+             "total_cost_usd": 0.4}   # priced from the tokens on Haiku: $0.01 a call, not the reported $0.40
     rows = [{"civ": "verdance", "tick": t, "usage": usage} for t in (0, 10, 39, 40, 41, 90)]
     meter = run.cost_meter(rows, state, 0, 100)["verdance"]
     assert meter["first_contact"] == 40 and meter["first_contact_turn"] == 41

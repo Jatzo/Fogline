@@ -62,8 +62,10 @@ let loading = 0;         // counts loads, so a slower earlier one can't win
 let runName = "";
 let asking = 0;          // counts turn requests, for the same reason
 let diorama = null;      // the 3D scene, or null when the flat map is drawn instead
+let cost = {};           // calls and notional cost per civ, up to the frame shown
 let following = null;    // the timer that checks a run still being played for new frames
 let catching = false;    // a check is already on its way
+let playedTo = null;     // the last tick the followed run had played at the last check
 const FOLLOW_MS = 10000;
 
 // ---------- small helpers ----------
@@ -115,6 +117,25 @@ function setText(el, text) {
 function civName(id) {
   const civ = run.world.civs.find((c) => c.id === id);
   return civ ? civ.name : id;
+}
+
+function civByName(name) {
+  const civ = run.world.civs.find((c) => c.name === name);
+  return civ ? civ.id : null;
+}
+
+// Who rules a civ in this run: "Haiku 5.5" for claude-haiku-5-5, "mock ruler", or "builder bot".
+function rulerOf(id) {
+  const m = run.manifest;
+  if (!m.llm || m.llm === "bots" || !(m.llm_civs || []).includes(id)) return `${m.bot} bot`;
+  const model = (m.models && m.models[id]) || m.model || (m.llm === "live" ? "claude-haiku-5-5" : null);
+  if (!model) return `${m.llm} ruler`;
+  const [family, ...version] = model.replace(/^claude-/, "").split("-");
+  return `${family.charAt(0).toUpperCase()}${family.slice(1)} ${version.join(".")}`;
+}
+
+function signed(n) {
+  return n > 0 ? `+${n}` : String(n);
 }
 
 function centreOf(x, y) {
@@ -776,31 +797,56 @@ function drawPulses(now) {
 
 // ---------- panels ----------
 
+const BASICS = ["food", "timber", "stone", "metal"];
+
 function renderCivs() {
   const frame = run.frames[at];
+  const before = at > 0 ? run.frames[at - 1] : null;
   const list = $("civs");
   list.replaceChildren();
   for (const civ of run.world.civs) {
     const mine = frame.settlements.filter((t) => t.civ === civ.id);
     const people = mine.reduce((sum, t) => sum + t.pop, 0);
     const counts = STAGE_ORDER.map((s) => [s, mine.filter((t) => t.stage === s).length]).filter(([, n]) => n);
+    const facts = frame.civs[civ.id];
     const li = document.createElement("li");
     const swatch = document.createElement("span");
     swatch.className = "swatch";
     swatch.style.background = INK[civ.id];
-    const name = document.createElement("span");
-    name.className = "name";
-    setText(name, civ.name);
+    const name = document.createElement("button");
+    name.type = "button";
+    name.className = "civ-pick";
+    name.setAttribute("aria-pressed", String($("turn-civ").value === civ.id));
+    setText(name, `${civ.name} (${rulerOf(civ.id)})`);
+    name.addEventListener("click", () => {
+      $("turn-civ").value = civ.id;
+      renderCivs();
+      loadTurn().catch(fail);
+    });
     const pop = document.createElement("span");
     pop.className = "people";
     setText(pop, plural(people, "person").replace("persons", "people"));
+    const lines = [
+      `${counts.map(([s, n]) => plural(n, s)).join(", ") || "no settlements"}; ${facts.techs} of ${run.world.techs} techs; stability ${facts.stability}`,
+    ];
+    if (facts.stocks) {
+      lines.push(BASICS.map((good) => {
+        const now = facts.stocks[good] || 0;
+        const was = before && before.civs[civ.id].stocks ? before.civs[civ.id].stocks[good] || 0 : now;
+        return `${good} ${now.toLocaleString("en-GB")}${before ? ` (${signed(now - was)})` : ""}`;
+      }).join(", "));
+    }
+    const standing = Object.entries(facts.standing || {});
+    lines.push(standing.length ? `Regards ${standing.map(([other, word]) => `${civName(other)} as ${word}`).join(", ")}` : "Has met no one");
+    if (cost[civ.id]) lines.push(`${plural(cost[civ.id].calls, "ruler call")}, $${cost[civ.id].cost_usd.toFixed(2)} notional`);
     const detail = document.createElement("span");
     detail.className = "detail";
-    const towns = counts.map(([s, n]) => plural(n, s)).join(", ") || "no settlements";
-    setText(detail, `${towns}; ${frame.civs[civ.id].techs} of ${run.world.techs} techs`);
+    setText(detail, lines.join("\n"));
     li.append(swatch, name, pop, detail);
     list.append(li);
   }
+  const total = Object.values(cost).reduce((sum, c) => sum + c.cost_usd, 0);
+  setText($("civs-total"), Object.keys(cost).length ? `Rulers so far: $${total.toFixed(2)} notional, on the plan.` : "");
 }
 
 function renderTown() {
@@ -809,7 +855,7 @@ function renderTown() {
   $("town-hint").hidden = Boolean(town);
   if (!town) return;
   setText($("town-title"), town.name);
-  setText($("town-sub"), `${town.capital ? "Capital" : "Outpost"} of ${civName(town.civ)}`);
+  setText($("town-sub"), `${town.capital ? "Capital" : "Outpost"} of ${civName(town.civ)}, ruled by ${rulerOf(town.civ)}`);
   const facts = [
     ["Stage", town.stage],
     ["People", String(town.pop)],
@@ -850,13 +896,54 @@ async function loadTurn() {
   const civ = $("turn-civ").value;
   const newest = following && at === run.frames.length - 1;   // turns are logged every tick, frames every 4
   const tick = newest ? 2 ** 31 - 1 : run.frames[at].tick;
-  setText($("turn-sub"), newest ? `Reading ${civName(civ)}'s latest turn.` : `Reading ${civName(civ)}'s turn at tick ${tick}.`);
-  $("turn-facts").replaceChildren();
+  const whose = civName(civ).endsWith("s") ? `${civName(civ)}'` : `${civName(civ)}'s`;
+  setText($("turn-sub"), newest ? `Reading ${whose} latest turn.` : `Reading ${whose} turn at tick ${tick}.`);
   await new Promise((done) => setTimeout(done, TURN_WAIT_MS));
   if (mine !== asking) return;
-  const url = `/api/runs/${encodeURIComponent(runName)}/turns?civ=${encodeURIComponent(civ)}&tick=${tick}`;
-  const data = await getJSON(url);
-  if (mine === asking) renderTurn(data);
+  const base = `/api/runs/${encodeURIComponent(runName)}`;
+  const [data, done, spent] = await Promise.all([
+    getJSON(`${base}/turns?civ=${encodeURIComponent(civ)}&tick=${tick}`),
+    getJSON(`${base}/activity?until=${tick}&limit=40`),
+    getJSON(`${base}/cost?until=${tick}`),
+  ]);
+  if (mine !== asking) return;
+  renderTurn(data);
+  cost = spent;
+  renderCivs();
+  renderFeed(done, newest ? Infinity : run.frames[at].tick);
+}
+
+// What every ruler did lately, newest first, and this year's messages and offers as lines on the block.
+function renderFeed(items, upTo) {
+  const list = $("feed");
+  list.replaceChildren();
+  for (const item of items) {
+    const li = document.createElement("li");
+    const when = document.createElement("span");
+    when.className = "when";
+    setText(when, String(item.tick));
+    const swatch = document.createElement("span");
+    swatch.className = "swatch";
+    swatch.style.background = INK[item.civ];
+    const what = document.createElement("span");
+    what.className = item.kind === "set_note" ? "what note-line" : "what";
+    setText(what, item.text);
+    li.append(when, swatch, what);
+    list.append(li);
+  }
+  if (!items.length) {
+    const li = document.createElement("li");
+    setText(li, "Nothing yet: no ruler has acted by this point.");
+    list.append(li);
+  }
+  if (diorama) {
+    const newestTick = items.length ? items[0].tick : 0;
+    const from = Number.isFinite(upTo) ? upTo - 4 : newestTick - 4;
+    const links = items.filter((i) => i.to && i.tick > from && ["send_message", "offer_trade", "contact"].includes(i.kind))
+      .map((i) => ({ from: i.civ, to: civByName(i.to), kind: i.kind }))
+      .filter((l) => l.to);
+    diorama.links(links);
+  }
 }
 
 function renderTurn(data) {
@@ -958,6 +1045,7 @@ function setFollow(on) {
   clearInterval(following);
   following = on ? setInterval(() => catchUp().catch(fail), FOLLOW_MS) : null;
   $("follow").checked = on;
+  if (on) catchUp().catch(fail);   // say where the run is at once, not in 10 seconds
 }
 
 // Fetch only the frames saved since the last one held. A viewer on the newest frame moves on
@@ -971,13 +1059,15 @@ async function catchUp() {
     if (name !== runName || held !== run.frames) return;   // another run was opened meanwhile
     const onNewest = at === held.length - 1;
     held.push(...data.frames);
+    if (data.played_to !== null) setText($("live"), `Live: the run has played to tick ${data.played_to} of ${data.ticks}. A new year reaches the block every 4 ticks.`);
     $("scrub").max = String(held.length - 1);
     if (onNewest && data.frames.length && !timer) show(held.length - 1, true);
-    else if (onNewest && !timer) loadTurn().catch(fail);
+    else if (onNewest && !timer && data.played_to !== playedTo) loadTurn().catch(fail);   // only when it moved
     else renderTime();
+    playedTo = data.played_to;
     if (held[held.length - 1].tick >= data.ticks) {
       setFollow(false);
-      setText($("readout"), "The run has reached its last tick.");
+      setText($("live"), "The run has reached its last tick.");
     }
   } finally {
     catching = false;
@@ -1053,6 +1143,9 @@ async function getJSON(url) {
 async function loadRun(name) {
   stop();
   setFollow(false);
+  setText($("live"), "");
+  cost = {};
+  playedTo = null;
   const mine = ++loading;
   setText($("status"), "Loading the run.");
   const loaded = await getJSON(`/api/runs/${encodeURIComponent(name)}`);
@@ -1082,7 +1175,10 @@ async function loadRun(name) {
   if (!diorama) canvas.width = canvas.height = run.world.size * TILE;
   $("scrub").max = String(run.frames.length - 1);
   const m = run.manifest;
-  const parts = [`Seed ${m.seed}, ${m.ticks} ticks, ${m.bot} bots`];
+  const ruled = m.llm && m.llm !== "bots"
+    ? `${m.llm} rulers for ${m.llm_civs.length === run.world.civs.length ? "every civ" : m.llm_civs.map(civName).join(" and ")}`
+    : `${m.bot} bots`;
+  const parts = [`Seed ${m.seed}, ${m.ticks} ticks, ${ruled}`];
   if (m.events_enabled === false) parts.push("events off");
   let note = parts.join(", ") + ".";
   if (m.supply) note += ` Supplied run: a test stand-in for trade (ADR 0004), topping basics up to ${m.supply}.`;
@@ -1102,7 +1198,12 @@ async function openDiorama() {
   try {
     if (new URLSearchParams(location.search).has("flat")) throw new Error("the address asks for it with ?flat");
     const { createScene } = await import("./scene.js");
-    diorama = createScene($("scene"), { onPick: pickTile, onHover: hoverTile });
+    diorama = createScene($("scene"), {
+      onPick: pickTile,
+      onHover: hoverTile,
+      // Capitals carry the ruler and size; an outpost just its name, so the land stays in view.
+      labelFor: (t) => (t.capital ? [`${t.name} (${rulerOf(t.civ)})`, `${t.stage} of ${t.pop}`] : [t.name]),
+    });
     $("flat").hidden = true;
   } catch (error) {
     diorama = null;
@@ -1128,7 +1229,9 @@ async function start() {
     }
     select.addEventListener("change", () => loadRun(select.value).catch(fail));
     $("turn-civ").addEventListener("change", () => loadTurn().catch(fail));
-    await loadRun(runs[0].name);
+    const newest = runs.reduce((a, b) => (b.updated > a.updated ? b : a));
+    select.value = newest.name;
+    await loadRun(newest.name);
   } catch (error) {
     fail(error);
   }

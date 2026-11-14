@@ -11,7 +11,7 @@ This file is the handoff document for Claude Code. **Start with the rules spec (
 A long-running, watchable simulation where emergent behaviour (trade, dependence, deception, conflict, alliances) comes from **scarcity, discovery and pressure**, not from scripts. Success is a world you want to watch, plus a few honest, descriptive findings about what the agents did and why.
 
 **Decisions already made**
-- All five rulers use the **same model (Haiku 5.5)** with **distinct cultures**. Short, fast decisions suit a ruler who has to act on thin information. Whether a smaller model also makes rulers quicker to anger is a question for the runs to answer, not an assumption built into the rules. Swapping models is a later experiment.
+- Rulers are drawn from a **roster of models** (Haiku 5.5, Sonnet 5.5 and Opus 5.5) with **distinct cultures**. The model for each civ rotates with the seed, so over three seeds every civ is played by every model; with one model per civ in a run, a model's effect and a culture's can only be told apart across seeds (changed 2026-11-14, ADR 0012; it was one model, Haiku 5.5, for all). A run can still use one model for every civ (`--models`).
 - **No world leader.** The only authorities are the code engine (truth) and a read-only Chronicler. The operator acts as "Providence" (events).
 - Civs speak **normal language** from first contact (a pidgin phase is v2).
 - Runs on the operator's **Claude plan**: calls go through the plan's own login, not a paid API key, so LLM calls are a scarce resource (section 10). The adapter (headless Claude Code or the Agent SDK) is chosen in Phase 2 and recorded in an ADR; it must handle plan rate limits by pausing cleanly. A run is a **campaign of resumable sessions** (e.g. play a couple of hours a day, pause, resume), not one long unattended burn.
@@ -156,7 +156,7 @@ Deferred to v2: free-text "tinkering" experiments, `found_outpost` (use initial 
 
 ## 6. Agents
 
-### Civ ruler (one per civ, Haiku 5.5)
+### Civ ruler (one per civ, its model from the run's roster)
 Each turn it receives a compact observation (section 7) and returns a structured plan: reasoning summary, actions, memory notes, `next_wake`, `standing_orders`. Culture prompts live in `prompts/`; they give values, risk tolerance, **customs of hospitality**, taboos, speech style, and hard in-fiction priors. They must **not** instruct cooperation or aggression, and must **not** mention other civs or imply outsiders exist. Optionally vary decision cadence and temperature per civ.
 
 ### Chronicler (read-only)
@@ -196,7 +196,7 @@ LLM calls are the scarce resource on a plan with usage limits.
 - **Complete wake list:** `message_received`, `offer_received`, `offer_expiring`, `treaty_proposed`, `unit_arrived`, `unit_idle`, `build_done`, `stock_below_threshold`, `foreign_unit_sighted`, `attack`, `contact`, `tech_unlocked`, plus a mandatory **heartbeat every 4–8 ticks** (set by config; longer in quiet early eras). `next_wake` semantics: whichever of the tick count or trigger fires first; a trigger that fires during an in-flight call is queued.
 - **Time-lapse:** the engine runs ticks with no LLM calls (civs follow validated standing orders) until a wake event fires, so key moments are never skipped.
 - **Tick loop under concurrency:** time stops at any tick where a civ wakes. All civs woken on that tick are called concurrently (up to the concurrency cap); the tick resumes only when every call has returned or timed out (a timeout counts as an empty plan, logged). Actions are applied in a fixed civ order, never in the order calls finish, so replays match. A trigger that fires while a civ's call is in flight is queued for its next wake.
-- **Models:** rulers are Haiku 5.5 as decided. Cost levers that don't change the ruler model: Chronicler tiering (section 6), shorter observations, rarer reflection, longer heartbeats.
+- **Models:** rulers come from the run's roster (section 1). Cost is priced from token counts at list prices (`fogline/pricing.py`), not from `claude -p`'s figure. Cost levers that don't change the ruler model: Chronicler tiering (section 6), shorter observations, rarer reflection, longer heartbeats.
 - **Rough estimate (to be replaced by Phase 3 measurements):** per civ per 300-tick run, about 60 heartbeats, 37 reflections and 30 to 80 event wakes, so 650 to 900 ruler calls per run before diplomacy. The v1 experiments (section 13) are 50 runs, so 30,000 to 45,000 ruler calls in all. If that doesn't fit the plan, cut seeds or ticks before cutting arms.
 - **Measure early:** Phase 3 records cost per 100 ticks **with and without contact** (diplomacy is the expensive part). The call budget is set from that.
 - Usage meter and soft alerts in the viewer; pause cleanly on limits and resume from stored outputs; optional hard cap in the LLM adapter, off by default.

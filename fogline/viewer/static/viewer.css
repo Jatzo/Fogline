@@ -1,11 +1,11 @@
-/* The world sits on a walnut table; everything you read is along the table's front edge, never over the land. */
+/* The world sits on a slate table; everything you read is in the panel beside it, never over the land. */
 :root {
-  --page: #1a120d;
-  --rail: #241912;
-  --rail-deep: #1d140e;
-  --ink: #e6dcc6;
-  --muted: #a8977e;
-  --line: rgba(230, 220, 198, 0.14);
+  --page: #1e2429;
+  --rail: #1e2429;
+  --rail-deep: #171c20;
+  --ink: #ece6da;
+  --muted: #9ba5ab;
+  --line: rgba(236, 230, 218, 0.12);
   --brass: #c9a24a;
   --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
   --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
@@ -25,7 +25,7 @@ body {
 
 .shell {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) clamp(15rem, 36vh, 24rem);
+  grid-template-columns: minmax(0, 1fr) clamp(22rem, 30vw, 31rem);
   height: 100vh;
 }
 
@@ -52,24 +52,20 @@ body {
   cursor: crosshair;
 }
 
-/* ---------- the front edge ---------- */
+/* ---------- the panel beside the table ---------- */
 
-.rail {
-  display: grid;
-  grid-template-columns: minmax(15rem, 1fr) minmax(15rem, 1.1fr) minmax(13rem, 1fr) minmax(19rem, 1.7fr);
+.side {
   min-height: 0;
+  overflow-y: auto;
   background: var(--rail);
-  border-top: 1px solid var(--brass);
-  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.5);
+  border-left: 1px solid var(--line);
 }
 
 .col {
-  min-height: 0;
-  overflow-y: auto;
-  padding: 0.9rem 1.2rem 1.2rem;
-  border-left: 1px solid var(--line);
+  padding: 1rem 1.3rem 1.2rem;
+  border-top: 1px solid var(--line);
 }
-.col:first-child { border-left: 0; }
+.col:first-child { border-top: 0; }
 
 h1 { margin: 0 0 0.6rem; font: 600 1.7rem/1.05 var(--serif); }
 h2 { margin: 0 0 0.5rem; font: 600 1.08rem/1.3 var(--serif); }
@@ -105,6 +101,7 @@ select {
 #when { margin-left: auto; color: var(--muted); font-size: 0.88rem; white-space: nowrap; }
 #scrub { width: 100%; margin: 0.5rem 0 0; accent-color: var(--brass); }
 .follow { margin-top: 0.4rem; }
+.live { color: var(--ink); }
 .follow input { accent-color: var(--brass); }
 
 .status { margin: 0.5rem 0 0; color: var(--brass); font-size: 0.88rem; }
@@ -122,7 +119,19 @@ select {
 .civs .swatch { width: 0.7rem; height: 0.7rem; margin-top: 0.4rem; }
 .civs .name { font-size: 1rem; }
 .civs .people { text-align: right; }
-.civs .detail { grid-column: 2 / 4; color: var(--muted); font-size: 0.82rem; }
+.civs .detail { grid-column: 2 / 4; color: var(--muted); font-size: 0.82rem; white-space: pre-line; }
+
+.civ-pick { padding: 0; border: 0; background: none; color: inherit; font: inherit; font-size: 1rem; text-align: left; cursor: pointer; }
+.civ-pick:hover, .civ-pick[aria-pressed="true"] { text-decoration: underline; text-decoration-color: var(--brass); text-underline-offset: 3px; }
+
+.town { margin-bottom: 0.9rem; padding-bottom: 0.6rem; border-bottom: 1px solid var(--line); }
+.feed { list-style: none; margin: 0.5rem 0 0; padding: 0; font-size: 0.86rem; }
+.feed li { display: grid; grid-template-columns: 2.4rem 0.55rem 1fr; column-gap: 0.45rem; padding: 0.3rem 0; border-top: 1px solid var(--line); }
+.feed li:first-child { border-top: 0; }
+.feed .when { color: var(--muted); }
+.feed .swatch { width: 0.55rem; height: 0.55rem; margin-top: 0.42rem; }
+.feed .what { overflow-wrap: anywhere; }
+.feed .note-line { color: var(--muted); }
 
 .facts { display: grid; grid-template-columns: auto 1fr; gap: 0.2rem 0.9rem; margin: 0.4rem 0 0; font-size: 0.9rem; }
 .facts dt { color: var(--muted); }
@@ -146,14 +155,7 @@ select {
 
 :focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 
-@media (max-width: 1100px) {
-  .rail { grid-template-columns: repeat(2, minmax(0, 1fr)); overflow-y: auto; }
-  .col:nth-child(3) { border-left: 0; }
-  .col { border-top: 1px solid var(--line); }
-}
-
-@media (max-width: 640px) {
-  .shell { grid-template-rows: 62vh auto; height: auto; }
-  .rail { grid-template-columns: 1fr; overflow: visible; }
-  .col { border-left: 0; overflow: visible; }
+@media (max-width: 860px) {
+  .shell { grid-template-columns: 1fr; grid-template-rows: 62vh auto; height: auto; }
+  .side { border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
 }

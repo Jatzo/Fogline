@@ -24,6 +24,9 @@ A ruler's turn goes through one adapter interface: `call((tick, civ, step), obse
 ## Correction after the live slice (Phase 3 M19, 2026-11-13)
 This record first said the default thinking came from user settings, so safe mode had turned it off. That was wrong. The tiny call's prompt was too small to need any thinking, and I read its 4 output tokens as thinking switched off. On real ruler prompts thinking is still on. In the two seed-1 live runs a call averaged 6,204 output tokens (slice) and 4,878 (baseline) against replies of about 1,311 and 1,058 characters, roughly 350 tokens, so most of the output is thinking. A call cost $0.174 and $0.150 on average, against the $0.072 smoke call. Safe mode still removes the user context: a tiny call before the runs reported 1,047 input tokens. I have not found a way to turn thinking off under `claude -p`, so the per-call cost stands (the SDK route below could); the figures are in `research/m19-cost-draft.md`.
 
+## Second correction: the reported cost was Opus pricing (2026-11-14)
+The costs above, and every cost recorded in M19, are the figure `claude -p` reports, and for `claude-haiku-5-5` it reports `costBasis: "unknown"` and charges Opus 5.5 rates. Every M19 call recomputed at Opus 5.5 prices with 1-hour cache writes matches its reported cost to the cent. At Haiku 5.5's list prices a ruler call averaged about $0.004, not $0.15 to $0.17, and the M19 slice cost $1.16, not $46.28. Calls are now priced from their token counts in `fogline/pricing.py` (docs/debug-log.md). Thinking is still on and still most of the output; it is simply cheap on Haiku.
+
 ## Not chosen
 - **The Anthropic SDK with an API key.** It would be faster, give exact token counts and allow thinking to be switched off, but it needs a paid key, against the project decision.
 - **Storing parsed replies.** They would be smaller and simpler to replay, but they would hide what the model really said, and couldn't be re-validated.
