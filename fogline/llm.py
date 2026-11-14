@@ -128,7 +128,15 @@ class LiveAdapter:
             except OSError as error:
                 return Outcome(ERROR, f"could not start {self.command[0]}: {error}"[:500])
         if done.returncode != 0:
-            return Outcome(ERROR, f"exit {done.returncode}: {done.stderr.strip()}"[:500])
+            # claude -p writes its own error (a usage or rate limit, say) to stdout as JSON; keep it,
+            # or every failure reads "exit 1" with nothing to go on.
+            said = done.stdout.strip()
+            try:
+                envelope = json.loads(said)
+                said = str(envelope.get("result") or envelope.get("error") or "") if isinstance(envelope, dict) else said
+            except ValueError:
+                pass
+            return Outcome(ERROR, f"exit {done.returncode}: {said[:300]} {done.stderr.strip()}".strip()[:500])
         try:
             envelope = json.loads(done.stdout)
         except ValueError:

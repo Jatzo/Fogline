@@ -1122,7 +1122,8 @@ canvas.addEventListener("click", (event) => pickTile(run && tileAt(event)));
 $("play").addEventListener("click", play);
 $("back").addEventListener("click", () => { stop(); show(at - 1, false); });
 $("forward").addEventListener("click", () => { stop(); show(at + 1, true); });
-$("scrub").addEventListener("input", (e) => { stop(); show(Number(e.target.value), false); });
+// Read the slider before stop(): stopping redraws the time controls, which puts the slider back.
+$("scrub").addEventListener("input", (e) => { const index = Number(e.target.value); stop(); show(index, false); });
 
 document.addEventListener("keydown", (event) => {
   if (!run || event.target.tagName === "SELECT" || event.target.tagName === "INPUT") return;
@@ -1185,7 +1186,8 @@ async function loadRun(name) {
   setText($("run-note"), note);
   selected = null;
   if (diorama) diorama.select(null);
-  const unfinished = run.frames[run.frames.length - 1].tick < m.ticks;
+  // ?record keeps a recording on the frames it steps through, never jumping to the newest.
+  const unfinished = run.frames[run.frames.length - 1].tick < m.ticks && !new URLSearchParams(location.search).has("record");
   at = unfinished ? run.frames.length - 1 : 0;   // a run still being played opens on its newest frame
   setText($("status"), "");
   setFollow(unfinished);
@@ -1229,7 +1231,9 @@ async function start() {
     }
     select.addEventListener("change", () => loadRun(select.value).catch(fail));
     $("turn-civ").addEventListener("change", () => loadTurn().catch(fail));
-    const newest = runs.reduce((a, b) => (b.updated > a.updated ? b : a));
+    // ?run=<name> opens that run (the time-lapse recorder uses it); otherwise the newest one.
+    const asked = new URLSearchParams(location.search).get("run");
+    const newest = runs.find((r) => r.name === asked) || runs.reduce((a, b) => (b.updated > a.updated ? b : a));
     select.value = newest.name;
     await loadRun(newest.name);
   } catch (error) {

@@ -237,3 +237,11 @@ def test_the_viewer_scripts_parse(name, tmp_path):
     copy.write_bytes((STATIC / name).read_bytes())
     done = subprocess.run(["node", "--check", str(copy)], capture_output=True, text=True, check=False)
     assert done.returncode == 0, done.stderr
+
+
+def test_the_slider_is_read_before_stopping_puts_it_back():
+    # stop() redraws the time controls, which sets the slider to the current year; reading it after
+    # meant a drag never moved the run (found by the time-lapse recorder, docs/debug-log.md).
+    script = (STATIC / "viewer.js").read_text(encoding="utf-8")
+    handler = re.search(r'\$\("scrub"\)\.addEventListener\("input", \(e\) => \{(.*?)\}\);', script).group(1)
+    assert handler.index("e.target.value") < handler.index("stop()")

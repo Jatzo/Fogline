@@ -88,3 +88,13 @@ process starts.
 **The fix.** `fogline/pricing.py` holds list prices per model with the date they were read, and every call is priced from its token counts. The recorder now keeps the model asked for and the 1-hour/5-minute split of cache writes. The reported figure is kept as a record only. The cost drafts and ADR 0007 are corrected.
 
 **Regression test.** `test_a_haiku_call_is_priced_from_the_table_not_from_what_claude_p_reported` in `tests/test_pricing.py` prices the tiny call's usage: Opus rates give the reported $0.00954, Haiku's give $0.00024. Locally, `test_the_m19_costs_claude_p_reported_are_opus_prices_to_the_cent` checks the stored M19 rows.
+
+## 2026-11-14: dragging the year slider never moved the run
+
+**What broke.** Dragging the slider in the viewer left the run on the year it was already showing. Nobody had noticed, because the arrow buttons, the keys and Play all worked.
+
+**How I found it.** The time-lapse recorder sets the slider and fires its `input` event for each year, then waits for the year label to change. It timed out on the second year. Its error printed the page state: the label still read tick 0 and the slider was back at 0. In the handler, `stop()` ran first, and `stop()` calls `renderTime()`, which writes the current year back into the slider. Only then did the handler read `e.target.value`, which was by now the old year.
+
+**The fix.** The handler reads the slider's value before it calls `stop()`.
+
+**Regression test.** `test_the_slider_is_read_before_stopping_puts_it_back` in `tests/test_viewer.py` checks the handler reads the value before stopping. The recorder itself fails on the second year if it comes back.

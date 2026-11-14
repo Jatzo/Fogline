@@ -11,6 +11,8 @@ dependencies = []
 
 [project.optional-dependencies]
 viewer = ["fastapi>=0.110", "uvicorn>=0.29"]
+# The README time-lapse (fogline/viewer/timelapse.py); not needed to run or test, so CI skips it.
+record = ["playwright>=1.48"]
 dev = ["pytest>=8", "hypothesis>=6.100", "httpx>=0.27"]
 
 [tool.setuptools.packages.find]

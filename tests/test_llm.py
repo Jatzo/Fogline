@@ -179,3 +179,11 @@ def test_a_live_output_keeps_only_whitelisted_usage_numbers(tmp_path, monkeypatc
                             "cache_read_input_tokens": 0, "total_cost_usd": 0.0084}
     rows = llm.load_outputs(tmp_path / "live" / "outputs.jsonl")
     assert summary["verdance"]["tokens"]["input_tokens"] == sum(r["usage"]["input_tokens"] for r in rows)
+
+
+def test_a_failed_call_keeps_the_reason_claude_p_gave_on_stdout(monkeypatch):
+    # The first mixed run stopped on "exit 1:" with nothing else; claude -p had put its reason on stdout.
+    said = json.dumps({"is_error": True, "result": "Claude usage limit reached. Your limit resets at 4pm."})
+    monkeypatch.setattr(llm.subprocess, "run", lambda argv, **kw: subprocess.CompletedProcess(argv, 1, said, "warning on stderr"))
+    outcome = llm.LiveAdapter(lambda civ, met: "rules").call((0, "verdance", "decide"), {"tick": 0})
+    assert outcome.status == llm.ERROR and "usage limit reached" in outcome.raw and "warning on stderr" in outcome.raw
