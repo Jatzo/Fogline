@@ -7,6 +7,7 @@ hash as a run that never stopped; the resume test holds that.
 
 import gzip
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -18,8 +19,12 @@ def save(state: dict, path: Path) -> None:
     data = canonical_json(state).encode("ascii")
     # An empty filename and a zero time keep the local path and the clock out of the gzip header,
     # so a snapshot holds nothing but the state and can be shared as it is.
-    with open(path, "wb") as handle, gzip.GzipFile(filename="", fileobj=handle, mode="wb", mtime=0) as packed:
+    # Written beside the target and then renamed into place, so a viewer reading a run while it
+    # is being played never opens a half-written snapshot.
+    part = path.with_name(path.name + ".part")
+    with open(part, "wb") as handle, gzip.GzipFile(filename="", fileobj=handle, mode="wb", mtime=0) as packed:
         packed.write(data)
+    os.replace(part, path)
 
 
 def load(path: Path) -> dict:

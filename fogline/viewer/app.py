@@ -6,6 +6,7 @@ reaches a path.
 """
 
 import json
+import mimetypes
 import re
 from pathlib import Path
 
@@ -20,6 +21,8 @@ STATIC = Path(__file__).parent / "static"
 RUN_NAME = re.compile(r"[A-Za-z0-9_-]+")
 SNAPSHOT_NAME = re.compile(r"snap-(\d{5})\.json\.gz")
 CSP = "default-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+# Windows can map .js to text/plain in its registry, and a browser refuses a module served that way.
+mimetypes.add_type("text/javascript", ".js")
 
 
 def list_runs(runs_dir: Path) -> dict[str, Path]:
@@ -32,6 +35,15 @@ def list_runs(runs_dir: Path) -> dict[str, Path]:
                 and not entry.is_junction() and (entry / "manifest.json").is_file()):
             found[entry.name] = entry
     return found
+
+
+def frames_after(folder: Path, after: int) -> dict:
+    """Only the frames saved after a tick, so a viewer following a run reads the new snapshots
+    and not the whole run again. The manifest says how many ticks the run will reach."""
+    manifest = json.loads((folder / "manifest.json").read_text(encoding="ascii"))
+    newer = sorted(p for p in folder.iterdir()
+                   if (m := SNAPSHOT_NAME.fullmatch(p.name)) and int(m.group(1)) > after)
+    return {"ticks": manifest["ticks"], "frames": [view.frame(snapshot.load(p)) for p in newer]}
 
 
 def load_run(folder: Path) -> dict:
@@ -53,6 +65,7 @@ def create_app(runs_dir: Path) -> FastAPI:
         response = await call_next(request)
         response.headers["Content-Security-Policy"] = CSP
         response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Cache-Control"] = "no-cache"  # always revalidate, so an edited page is never stale
         return response
 
     @app.get("/api/runs")
@@ -67,6 +80,13 @@ def create_app(runs_dir: Path) -> FastAPI:
             raise HTTPException(404, "No run with that name.")
         return load_run(folder)
 
+    @app.get("/api/runs/{name}/frames")
+    def frames(name: str, after: int) -> dict:
+        folder = list_runs(runs_dir).get(name)
+        if folder is None:
+            raise HTTPException(404, "No run with that name.")
+        return frames_after(folder, after)
+
     @app.get("/api/runs/{name}/turns")
     def turns(name: str, civ: str, tick: int) -> dict:
         folder = list_runs(runs_dir).get(name)
@@ -79,10 +99,20 @@ def create_app(runs_dir: Path) -> FastAPI:
 
 
 def _lines(path: Path) -> list[dict]:
+    """A JSON-lines log. A run still being played may be half way through writing its last line,
+    so a last line that doesn't parse is left out; one anywhere else is a real fault."""
     if not path.is_file():
         return []
     with open(path, encoding="utf-8") as handle:
-        return [json.loads(line) for line in handle if line.strip()]
+        lines = [line for line in handle if line.strip()]
+    rows = []
+    for number, line in enumerate(lines):
+        try:
+            rows.append(json.loads(line))
+        except ValueError:
+            if number < len(lines) - 1:
+                raise
+    return rows
 
 
 def civ_turn(folder: Path, civ: str, tick: int) -> dict:

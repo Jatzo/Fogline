@@ -1,12 +1,14 @@
+/* The world sits on a walnut table; everything you read is along the table's front edge, never over the land. */
 :root {
-  --ground: #1f2a30;
-  --ground-deep: #172025;
-  --line: #34444c;
-  --text: #e6e2d6;
-  --muted: #9aa6a6;
-  --focus: #f0c75e;
+  --page: #1a120d;
+  --rail: #241912;
+  --rail-deep: #1d140e;
+  --ink: #e6dcc6;
+  --muted: #a8977e;
+  --line: rgba(230, 220, 198, 0.14);
+  --brass: #c9a24a;
   --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
-  --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
   color-scheme: dark;
 }
 
@@ -15,165 +17,143 @@
 html, body { margin: 0; height: 100%; }
 
 body {
-  background: var(--ground-deep);
-  color: var(--text);
-  font: 15px/1.5 var(--sans);
+  background: var(--page);
+  color: var(--ink);
+  font: 15px/1.55 var(--serif);
+  font-variant-numeric: tabular-nums;
 }
 
 .shell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 19rem;
-  grid-template-rows: minmax(0, 1fr) auto;
-  grid-template-areas: "map side" "time side";
+  grid-template-rows: minmax(0, 1fr) clamp(15rem, 36vh, 24rem);
   height: 100vh;
 }
 
-.map-area {
-  grid-area: map;
+/* ---------- the table ---------- */
+
+.table { position: relative; min-height: 0; overflow: hidden; }
+.table > canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+.table > canvas:active { cursor: grabbing; }
+
+.flat {
+  position: absolute;
+  inset: 0;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 1rem 1rem 0.25rem;
-  min-height: 0;
+  padding: 1rem;
 }
-
-.map-frame {
-  width: min(100%, calc(100vh - 7rem));
-  aspect-ratio: 1;
-  flex: none;
-  min-height: 0;          /* the canvas is 1,536 px; without this it sets the frame's height */
-  overflow: hidden;
-  border: 1px solid var(--line);
-  background: #2e4a5c;
-}
-
+.flat[hidden] { display: none; }
 #map {
-  display: block;
-  width: 100%;
   height: 100%;
+  max-width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
   cursor: crosshair;
 }
 
-.readout {
-  margin: 0.4rem 0 0;
-  min-height: 1.5em;
-  color: var(--muted);
-  font-size: 0.85rem;
-  font-variant-numeric: tabular-nums;
+/* ---------- the front edge ---------- */
+
+.rail {
+  display: grid;
+  grid-template-columns: minmax(15rem, 1fr) minmax(15rem, 1.1fr) minmax(13rem, 1fr) minmax(19rem, 1.7fr);
+  min-height: 0;
+  background: var(--rail);
+  border-top: 1px solid var(--brass);
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.5);
 }
 
-.side {
-  grid-area: side;
-  background: var(--ground);
-  border-left: 1px solid var(--line);
-  padding: 1.25rem 1.25rem 1.5rem;
+.col {
+  min-height: 0;
   overflow-y: auto;
+  padding: 0.9rem 1.2rem 1.2rem;
+  border-left: 1px solid var(--line);
 }
+.col:first-child { border-left: 0; }
 
-h1 {
-  margin: 0 0 0.75rem;
-  font: 600 1.6rem/1.1 var(--serif);
-  letter-spacing: 0.01em;
-}
+h1 { margin: 0 0 0.6rem; font: 600 1.7rem/1.05 var(--serif); }
+h2 { margin: 0 0 0.5rem; font: 600 1.08rem/1.3 var(--serif); }
 
-h2 {
-  margin: 1.5rem 0 0.5rem;
-  font: 600 1.05rem/1.3 var(--serif);
-}
+.note { margin: 0.4rem 0 0; color: var(--muted); font-size: 0.86rem; }
+.note:empty { display: none; }
 
-.run-pick { display: flex; gap: 0.5rem; align-items: center; color: var(--muted); font-size: 0.85rem; }
+.pick { display: flex; gap: 0.5rem; align-items: center; color: var(--muted); font-size: 0.88rem; }
 
-select, button, input[type="range"] { font: inherit; color: inherit; }
+select, button, input { font: inherit; color: inherit; }
 
 select {
   flex: 1;
-  background: var(--ground-deep);
+  min-width: 0;
+  background: var(--rail-deep);
   border: 1px solid var(--line);
-  border-radius: 3px;
-  padding: 0.2rem 0.4rem;
+  border-radius: 2px;
+  padding: 0.15rem 0.4rem;
 }
 
-.run-note { margin: 0.6rem 0 0; color: var(--muted); font-size: 0.82rem; }
+.time { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.8rem; }
+.time button {
+  min-width: 2.3rem;
+  height: 2.1rem;
+  padding: 0 0.7rem;
+  background: var(--rail-deep);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  cursor: pointer;
+}
+.time button:hover { border-color: var(--muted); }
+#play { min-width: 4.4rem; }
+#when { margin-left: auto; color: var(--muted); font-size: 0.88rem; white-space: nowrap; }
+#scrub { width: 100%; margin: 0.5rem 0 0; accent-color: var(--brass); }
+.follow { margin-top: 0.4rem; }
+.follow input { accent-color: var(--brass); }
+
+.status { margin: 0.5rem 0 0; color: var(--brass); font-size: 0.88rem; }
+.status:empty { display: none; }
 
 .civs { list-style: none; margin: 0; padding: 0; }
-
 .civs li {
   display: grid;
-  grid-template-columns: 0.75rem 1fr auto;
+  grid-template-columns: 0.7rem 1fr auto;
   column-gap: 0.6rem;
-  padding: 0.45rem 0;
+  padding: 0.35rem 0;
   border-top: 1px solid var(--line);
 }
+.civs li:first-child { border-top: 0; }
+.civs .swatch { width: 0.7rem; height: 0.7rem; margin-top: 0.4rem; }
+.civs .name { font-size: 1rem; }
+.civs .people { text-align: right; }
+.civs .detail { grid-column: 2 / 4; color: var(--muted); font-size: 0.82rem; }
 
-.civs .swatch { width: 0.75rem; height: 0.75rem; margin-top: 0.35rem; border-radius: 2px; }
-.civs .name { font-family: var(--serif); font-size: 1rem; }
-.civs .people { font-variant-numeric: tabular-nums; text-align: right; }
-.civs .detail { grid-column: 2 / 4; color: var(--muted); font-size: 0.8rem; }
-
-.town { margin-top: 0.5rem; }
-.town-sub { margin: -0.3rem 0 0.6rem; color: var(--muted); font-size: 0.85rem; }
-
-.facts { display: grid; grid-template-columns: auto 1fr; gap: 0.2rem 0.9rem; margin: 0; font-size: 0.88rem; }
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 0.2rem 0.9rem; margin: 0.4rem 0 0; font-size: 0.9rem; }
 .facts dt { color: var(--muted); }
 .facts dd { margin: 0; }
 
-.hint { margin-top: 1.5rem; color: var(--muted); font-size: 0.85rem; }
-
-.turn { margin-top: 1.5rem; padding-top: 0.75rem; border-top: 1px solid var(--line); }
-.turn .run-pick { margin-bottom: 0.6rem; }
+.turn .pick { margin-bottom: 0.3rem; }
 .turn .facts dd { white-space: pre-line; overflow-wrap: anywhere; }
-.turn details { margin-top: 0.6rem; font-size: 0.85rem; }
+.turn details { margin-top: 0.6rem; font-size: 0.86rem; }
 .turn summary { cursor: pointer; color: var(--muted); }
 .raw {
-  max-height: 16rem;
+  max-height: 14rem;
   overflow: auto;
   margin: 0.4rem 0 0;
   padding: 0.5rem 0.6rem;
-  background: var(--ground-deep);
+  background: var(--rail-deep);
   border: 1px solid var(--line);
-  font: 0.75rem/1.4 ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font: 0.76rem/1.45 var(--mono);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
-.time {
-  grid-area: time;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem 1rem;
+:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+@media (max-width: 1100px) {
+  .rail { grid-template-columns: repeat(2, minmax(0, 1fr)); overflow-y: auto; }
+  .col:nth-child(3) { border-left: 0; }
+  .col { border-top: 1px solid var(--line); }
 }
 
-.time button {
-  min-width: 2.4rem;
-  height: 2.2rem;
-  padding: 0 0.8rem;
-  background: var(--ground);
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  cursor: pointer;
-}
-
-.time button:hover { border-color: var(--muted); }
-#play { min-width: 4.5rem; }
-
-#scrub { flex: 1; accent-color: var(--focus); }
-
-#when { min-width: 9rem; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.88rem; }
-
-:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-
-.status { position: fixed; left: 1rem; bottom: 4rem; margin: 0; color: var(--focus); }
-.status:empty { display: none; }
-
-@media (max-width: 760px) {
-  .shell {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto;
-    grid-template-areas: "map" "time" "side";
-    height: auto;
-  }
-  .map-frame { width: 100%; }
-  .side { border-left: 0; border-top: 1px solid var(--line); }
+@media (max-width: 640px) {
+  .shell { grid-template-rows: 62vh auto; height: auto; }
+  .rail { grid-template-columns: 1fr; overflow: visible; }
+  .col { border-left: 0; overflow: visible; }
 }

@@ -1,8 +1,9 @@
 "use strict";
 
-// The read-only map, painted top-down. Every piece of text from the run goes in with textContent.
-// Nothing here uses Math.random: every wobble comes from a hash of the tile, so a frame always
-// looks the same.
+// The read-only viewer. The world is drawn in 3D by scene.js; where WebGL isn't available, the
+// map below is painted top-down instead. Every piece of text from the run goes in with
+// textContent. Nothing here uses Math.random: every wobble comes from a hash of the tile, so a
+// frame always looks the same.
 
 const TILE = 24;                // canvas pixels per map tile
 const PLAY_MS = 250;            // four snapshots a second
@@ -60,6 +61,10 @@ let animating = false;   // a pulse redraw is already queued
 let loading = 0;         // counts loads, so a slower earlier one can't win
 let runName = "";
 let asking = 0;          // counts turn requests, for the same reason
+let diorama = null;      // the 3D scene, or null when the flat map is drawn instead
+let following = null;    // the timer that checks a run still being played for new frames
+let catching = false;    // a check is already on its way
+const FOLLOW_MS = 10000;
 
 // ---------- small helpers ----------
 
@@ -837,11 +842,18 @@ function goodsText(goods) {
   return parts.length ? parts.join(", ") : "nothing";
 }
 
+const TURN_WAIT_MS = 200;  // a request reads the whole turn log, so wait until stepping pauses
+
 async function loadTurn() {
   if (!run || timer) return;  // while the time-lapse plays, wait for it to stop
   const mine = ++asking;
   const civ = $("turn-civ").value;
-  const tick = run.frames[at].tick;
+  const newest = following && at === run.frames.length - 1;   // turns are logged every tick, frames every 4
+  const tick = newest ? 2 ** 31 - 1 : run.frames[at].tick;
+  setText($("turn-sub"), newest ? `Reading ${civName(civ)}'s latest turn.` : `Reading ${civName(civ)}'s turn at tick ${tick}.`);
+  $("turn-facts").replaceChildren();
+  await new Promise((done) => setTimeout(done, TURN_WAIT_MS));
+  if (mine !== asking) return;
   const url = `/api/runs/${encodeURIComponent(runName)}/turns?civ=${encodeURIComponent(civ)}&tick=${tick}`;
   const data = await getJSON(url);
   if (mine === asking) renderTurn(data);
@@ -901,7 +913,7 @@ function show(index, animate) {
   const before = run.frames[at];
   at = Math.max(0, Math.min(run.frames.length - 1, index));
   const now = run.frames[at];
-  if (animate && !reduceMotion.matches && now.tick > before.tick) {
+  if (!diorama && animate && !reduceMotion.matches && now.tick > before.tick) {
     const was = new Map(before.settlements.map((t) => [t.id, t.stage]));
     for (const t of now.settlements) {
       if (was.has(t.id) && STAGE_ORDER.indexOf(t.stage) > STAGE_ORDER.indexOf(was.get(t.id))) {
@@ -910,7 +922,8 @@ function show(index, animate) {
       }
     }
   }
-  draw();
+  if (diorama) diorama.show(now, before, animate && !reduceMotion.matches);
+  else draw();
   renderCivs();
   renderTown();
   renderTime();
@@ -939,6 +952,40 @@ function stop() {
   }
 }
 
+// ---------- following a run as it is played ----------
+
+function setFollow(on) {
+  clearInterval(following);
+  following = on ? setInterval(() => catchUp().catch(fail), FOLLOW_MS) : null;
+  $("follow").checked = on;
+}
+
+// Fetch only the frames saved since the last one held. A viewer on the newest frame moves on
+// to the next; one looking back stays where it is.
+async function catchUp() {
+  if (!run || catching) return;
+  catching = true;
+  try {
+    const name = runName, held = run.frames;
+    const data = await getJSON(`/api/runs/${encodeURIComponent(name)}/frames?after=${held[held.length - 1].tick}`);
+    if (name !== runName || held !== run.frames) return;   // another run was opened meanwhile
+    const onNewest = at === held.length - 1;
+    held.push(...data.frames);
+    $("scrub").max = String(held.length - 1);
+    if (onNewest && data.frames.length && !timer) show(held.length - 1, true);
+    else if (onNewest && !timer) loadTurn().catch(fail);
+    else renderTime();
+    if (held[held.length - 1].tick >= data.ticks) {
+      setFollow(false);
+      setText($("readout"), "The run has reached its last tick.");
+    }
+  } finally {
+    catching = false;
+  }
+}
+
+$("follow").addEventListener("change", (e) => setFollow(e.target.checked));
+
 // ---------- map interaction ----------
 
 function tileAt(event) {
@@ -959,9 +1006,8 @@ function nearestTown(x, y) {
   return best;
 }
 
-canvas.addEventListener("mousemove", (event) => {
+function hoverTile(tile) {
   if (!run) return;
-  const tile = tileAt(event);
   if (!tile) return setText($("readout"), "");
   const biome = (BIOME[run.world.biome[tile.y][tile.x]] || BIOME.P).name;
   const frame = run.frames[at];
@@ -969,16 +1015,19 @@ canvas.addEventListener("mousemove", (event) => {
   const held = o < 0 ? "unclaimed" : `${frame.settlements[o].name}, ${civName(frame.settlements[o].civ)}`;
   const river = run.world.river[tile.y][tile.x] === "1" ? ", river" : "";
   setText($("readout"), `Tile ${tile.x},${tile.y}: ${biome}${river}; ${held}`);
-});
+}
 
-canvas.addEventListener("click", (event) => {
+function pickTile(tile) {
   if (!run) return;
-  const tile = tileAt(event);
   const town = tile && nearestTown(tile.x, tile.y);
   selected = town ? town.id : null;
-  draw();
+  if (diorama) diorama.select(selected);
+  else draw();
   renderTown();
-});
+}
+
+canvas.addEventListener("mousemove", (event) => hoverTile(run && tileAt(event)));
+canvas.addEventListener("click", (event) => pickTile(run && tileAt(event)));
 
 $("play").addEventListener("click", play);
 $("back").addEventListener("click", () => { stop(); show(at - 1, false); });
@@ -990,6 +1039,7 @@ document.addEventListener("keydown", (event) => {
   if (event.key === " ") { event.preventDefault(); play(); }
   if (event.key === "ArrowLeft") { stop(); show(at - 1, false); }
   if (event.key === "ArrowRight") { stop(); show(at + 1, true); }
+  if ((event.key === "r" || event.key === "R") && diorama) diorama.resetView();
 });
 
 // ---------- loading ----------
@@ -1002,17 +1052,22 @@ async function getJSON(url) {
 
 async function loadRun(name) {
   stop();
+  setFollow(false);
   const mine = ++loading;
   setText($("status"), "Loading the run.");
   const loaded = await getJSON(`/api/runs/${encodeURIComponent(name)}`);
   if (mine !== loading) return;
-  setText($("status"), "Painting the map.");
+  setText($("status"), diorama ? "Carving the block." : "Painting the map.");
   // A short pause lets the status line paint; a hidden tab still finishes loading.
   await new Promise((done) => setTimeout(done, 30));
   if (mine !== loading) return;
-  const painted = drawTerrain(loaded.world);    // about a second, once per run
-  if (mine !== loading) return;
-  terrain = painted;
+  if (diorama) {
+    diorama.load(loaded.world);
+  } else {
+    const painted = drawTerrain(loaded.world);    // about a second, once per run
+    if (mine !== loading) return;
+    terrain = painted;
+  }
   run = loaded;
   runName = name;
   const pick = $("turn-civ");
@@ -1024,8 +1079,7 @@ async function loadRun(name) {
     pick.append(option);
   }
   pick.value = (run.manifest.llm_civs && run.manifest.llm_civs[0]) || run.world.civs[0].id;
-  const px = run.world.size * TILE;
-  canvas.width = canvas.height = px;
+  if (!diorama) canvas.width = canvas.height = run.world.size * TILE;
   $("scrub").max = String(run.frames.length - 1);
   const m = run.manifest;
   const parts = [`Seed ${m.seed}, ${m.ticks} ticks, ${m.bot} bots`];
@@ -1034,12 +1088,31 @@ async function loadRun(name) {
   if (m.supply) note += ` Supplied run: a test stand-in for trade (ADR 0004), topping basics up to ${m.supply}.`;
   setText($("run-note"), note);
   selected = null;
-  at = 0;
+  if (diorama) diorama.select(null);
+  const unfinished = run.frames[run.frames.length - 1].tick < m.ticks;
+  at = unfinished ? run.frames.length - 1 : 0;   // a run still being played opens on its newest frame
   setText($("status"), "");
-  show(0, false);
+  setFollow(unfinished);
+  show(at, false);
+}
+
+// The 3D scene, if this browser can draw it. Any failure (no WebGL, a module that won't load)
+// leaves the flat map in place, and says so.
+async function openDiorama() {
+  try {
+    if (new URLSearchParams(location.search).has("flat")) throw new Error("the address asks for it with ?flat");
+    const { createScene } = await import("./scene.js");
+    diorama = createScene($("scene"), { onPick: pickTile, onHover: hoverTile });
+    $("flat").hidden = true;
+  } catch (error) {
+    diorama = null;
+    $("flat").hidden = false;
+    setText($("readout"), `The flat map is shown because ${error.message}. Open the page without ?flat in a browser with WebGL for the 3D view.`);
+  }
 }
 
 async function start() {
+  await openDiorama();
   try {
     const runs = await getJSON("/api/runs");
     const select = $("run");

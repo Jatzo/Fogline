@@ -1,5 +1,6 @@
 """The read-only viewer (PLAN section 12, Phase 1): frames, the local API and the page's text sinks."""
 
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -100,10 +101,34 @@ def test_pages_carry_a_strict_content_policy_and_other_hosts_are_refused(client)
     assert client.get("/", headers={"host": "evil.example"}).status_code == 400
 
 
-STATIC_FILES = ("index.html", "viewer.js", "viewer.css")
+STATIC_FILES = ("index.html", "viewer.js", "viewer.css", "scene.js", "world3d.js")
+# three.js is vendored, not written here, so it is pinned by hash instead of read for sinks
+# (it holds URLs and innerHTML of its own). OrbitControls.js has one edited line: its bare
+# import of 'three' points at the vendored file, since the CSP blocks an import map.
+VENDORED = {
+    "three.module.min.js": "08fd7545d13d2c7fb65ab691530a802dafefd638596501854f267d0fb13c39e7",
+    "OrbitControls.js": "57885eceed4dc5f2de100ef2d202975aae207d9f136399879d87ed39754fa684",
+}
 SINKS = re.compile(r"innerHTML|outerHTML|insertAdjacentHTML|document\.write|DOMParser|createContextualFragment"
                    r"|srcdoc|\beval\s*\(|new\s+Function|https?://")
 INLINE_HANDLER = re.compile(r"<[^>]*\son[a-z]+\s*=", re.IGNORECASE)
+
+
+def test_vendored_three_js_is_the_pinned_release_with_its_licence():
+    folder = STATIC / "vendor"
+    assert sorted(p.name for p in folder.iterdir()) == sorted([*VENDORED, "THREE-LICENSE"])
+    for name, digest in VENDORED.items():
+        assert hashlib.sha256((folder / name).read_bytes()).hexdigest() == digest, name
+    assert "MIT License" in (folder / "THREE-LICENSE").read_text(encoding="utf-8")
+    assert "from './three.module.min.js'" in (folder / "OrbitControls.js").read_text(encoding="utf-8")
+
+
+def test_scripts_are_served_as_javascript_and_never_cached_stale(client):
+    for path in ("/viewer.js", "/scene.js", "/vendor/three.module.min.js"):
+        response = client.get(path)
+        assert response.status_code == 200, path
+        assert "javascript" in response.headers["content-type"], (path, response.headers["content-type"])
+        assert response.headers["cache-control"] == "no-cache"
 
 
 @pytest.mark.parametrize("name", STATIC_FILES)
@@ -150,3 +175,21 @@ def test_the_inspector_shows_message_bodies_without_the_wrapper(tmp_path):
     assert [m["body"] for m in found["messages"]] == ["Salt for grain."]
     assert found["decide"]["observation"] == seen  # the raw view the ruler saw is untouched
     assert civ_turn(tmp_path, "verdance", 10)["messages"] == []
+
+
+def test_following_a_run_reads_only_the_frames_after_a_tick(tmp_path):
+    runs = tmp_path / "runs"
+    run.play(Config(), 1, 12, out=runs / "growing")
+    follow = TestClient(create_app(runs), base_url="http://127.0.0.1")
+    newer = follow.get("/api/runs/growing/frames", params={"after": 4}).json()
+    assert newer["ticks"] == 12 and [f["tick"] for f in newer["frames"]] == [8, 12]
+    assert follow.get("/api/runs/growing/frames", params={"after": 12}).json()["frames"] == []
+    assert follow.get("/api/runs/nowhere/frames", params={"after": 0}).status_code == 404
+    assert not list((runs / "growing").glob("*.part"))  # every snapshot was renamed into place
+
+
+def test_a_turn_log_cut_off_mid_line_still_reads(tmp_path):
+    # A run being played may be half way through writing its last line when the viewer reads it.
+    record = {"civ": "verdance", "tick": 3, "step": "decide", "observation": {"messages": []}}
+    (tmp_path / "turns.jsonl").write_text(json.dumps(record) + '\n{"civ": "verd', encoding="utf-8")
+    assert civ_turn(tmp_path, "verdance", 10)["decide"]["tick"] == 3

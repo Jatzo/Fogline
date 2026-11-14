@@ -1,0 +1,2 @@
+# Vendored files are pinned by SHA-256 (tests/test_viewer.py), so git must not touch their line endings.
+fogline/viewer/static/vendor/** -text
