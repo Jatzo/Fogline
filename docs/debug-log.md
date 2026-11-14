@@ -98,3 +98,13 @@ process starts.
 **The fix.** The handler reads the slider's value before it calls `stop()`.
 
 **Regression test.** `test_the_slider_is_read_before_stopping_puts_it_back` in `tests/test_viewer.py` checks the handler reads the value before stopping. The recorder itself fails on the second year if it comes back.
+
+## 2026-11-14: the mixed run billed an API key instead of the plan
+
+**What broke.** The seed-3 mixed run stopped at tick 19 with every call failing, and its resume stopped the same way. Rulers are meant to run on the plan login (ADR 0007), but the run had been billing an API key the whole time, and the key's credit ran out.
+
+**How I found it.** Every call returned "exit 1" with nothing else, because the adapter kept only stderr. Once it kept stdout too, the reason read "Credit balance is too low". Tiny calls of all three models then worked from my own shell but failed from the terminal tab the run was started in. The Windows user environment holds `ANTHROPIC_API_KEY`. A new PowerShell tab reads it, my shell had been started without it, and `claude -p` bills a key whenever one is set. The first 47 calls of the run (about $0.55 at list prices) went to the key.
+
+**The fix.** The live adapter now starts `claude -p` with `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` removed from its environment, so a ruler call uses the plan login whatever shell starts the run. The run resumed on the plan and passed tick 20 without an error.
+
+**Regression test.** `test_a_ruler_call_never_carries_an_api_key` in `tests/test_llm.py` sets both variables and checks that neither reaches the call, while other variables still do.

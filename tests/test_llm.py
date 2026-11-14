@@ -187,3 +187,18 @@ def test_a_failed_call_keeps_the_reason_claude_p_gave_on_stdout(monkeypatch):
     monkeypatch.setattr(llm.subprocess, "run", lambda argv, **kw: subprocess.CompletedProcess(argv, 1, said, "warning on stderr"))
     outcome = llm.LiveAdapter(lambda civ, met: "rules").call((0, "verdance", "decide"), {"tick": 0})
     assert outcome.status == llm.ERROR and "usage limit reached" in outcome.raw and "warning on stderr" in outcome.raw
+
+
+def test_a_ruler_call_never_carries_an_api_key(monkeypatch):
+    # An API key in the operator's environment made claude -p bill it instead of the plan, until its
+    # credit ran out mid-run (docs/debug-log.md).
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "test-token")
+    monkeypatch.setenv("FOGLINE_KEPT", "yes")
+    seen = {}
+    def fake_run(argv, env=None, **kw):
+        seen.update(env)
+        return subprocess.CompletedProcess(argv, 0, json.dumps({"result": "{}", "usage": {}}), "")
+    monkeypatch.setattr(llm.subprocess, "run", fake_run)
+    llm.LiveAdapter(lambda civ, met: "rules").call((0, "verdance", "decide"), {"tick": 0})
+    assert "ANTHROPIC_API_KEY" not in seen and "ANTHROPIC_AUTH_TOKEN" not in seen and seen["FOGLINE_KEPT"] == "yes"

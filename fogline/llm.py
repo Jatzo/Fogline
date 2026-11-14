@@ -13,6 +13,7 @@ make_ruler() turns an adapter into a decider for one civ.
 
 import copy
 import json
+import os
 import subprocess
 import tempfile
 import threading
@@ -26,6 +27,8 @@ from fogline.state import canonical_json, state_hash
 from fogline.turns import Decider, Refused
 
 OK, TIMEOUT, ERROR = "ok", "timeout", "error"
+# Credentials that would make claude -p bill an API account instead of the plan login.
+API_KEY_VARIABLES = frozenset({"ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"})
 MODEL = "claude-haiku-5-5"  # every ruler, by project decision (PLAN section 1)
 Key = tuple[int, str, str]  # (tick, civ, step)
 
@@ -119,10 +122,13 @@ class LiveAdapter:
                 "--system-prompt", self.prompt_for(key[1], prompts.met_names(observation)), "--tools", "",
                 "--strict-mcp-config",
                 "--no-session-persistence"]
+        # Rulers run on the plan login (ADR 0007). claude -p bills an API key instead whenever one is in the
+        # environment, so a key set for other work never reaches a ruler call.
+        env = {name: value for name, value in os.environ.items() if name not in API_KEY_VARIABLES}
         with tempfile.TemporaryDirectory() as empty:
             try:
                 done = subprocess.run(argv, input=prompts.user_message(observation), capture_output=True, text=True,
-                                      encoding="utf-8", timeout=self.timeout, cwd=empty, check=False)
+                                      encoding="utf-8", timeout=self.timeout, cwd=empty, env=env, check=False)
             except subprocess.TimeoutExpired:
                 return Outcome(TIMEOUT, f"no reply in {self.timeout:g} s")
             except OSError as error:
