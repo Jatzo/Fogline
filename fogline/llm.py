@@ -179,6 +179,8 @@ class Recorder:
         totals: dict[str, dict[str, float]] = {}
         for row in self.rows:
             for key, value in (row.get("usage") or {}).items():
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    continue  # answered_by names the model; only counts and the cost add up
                 civ = totals.setdefault(row["civ"], {})
                 civ[key] = civ.get(key, 0) + value
         return totals

@@ -108,3 +108,13 @@ process starts.
 **The fix.** The live adapter now starts `claude -p` with `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` removed from its environment, so a ruler call uses the plan login whatever shell starts the run. The run resumed on the plan and passed tick 20 without an error.
 
 **Regression test.** `test_a_ruler_call_never_carries_an_api_key` in `tests/test_llm.py` sets both variables and checks that neither reaches the call, while other variables still do.
+
+## 2026-11-14: the first finished mixed run crashed writing its summary
+
+**What broke.** The seed-3 mixed run played all 400 ticks and saved its last snapshot, then stopped with a `TypeError` before writing `summary.json`. Every live run that reached its end would have done the same.
+
+**How I found it.** The traceback ended in `Recorder.tokens()`, which adds up every field of each call's usage. Since the model roster, usage also keeps `answered_by`, the name of the model that answered, and adding a string to a number fails. The tests never caught it, because their fake calls had no model name in their usage, and the mixed run was the first live run to finish since the change.
+
+**The fix.** The totals add only numbers and skip anything else. A resume replayed the stored calls and wrote the summary.
+
+**Regression test.** `test_token_totals_skip_the_model_name_kept_with_usage` in `tests/test_llm.py` records two calls whose usage names the model, and checks the totals.

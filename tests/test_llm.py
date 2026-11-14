@@ -202,3 +202,16 @@ def test_a_ruler_call_never_carries_an_api_key(monkeypatch):
     monkeypatch.setattr(llm.subprocess, "run", fake_run)
     llm.LiveAdapter(lambda civ, met: "rules").call((0, "verdance", "decide"), {"tick": 0})
     assert "ANTHROPIC_API_KEY" not in seen and "ANTHROPIC_AUTH_TOKEN" not in seen and seen["FOGLINE_KEPT"] == "yes"
+
+
+def test_token_totals_skip_the_model_name_kept_with_usage():
+    # The first finished mixed run crashed writing its summary: usage also keeps answered_by, a string,
+    # and the totals tried to add it (docs/debug-log.md).
+    usage = {"input_tokens": 3, "output_tokens": 5, "total_cost_usd": 0.25, "answered_by": "claude-opus-5-5"}
+    class Answers:
+        def call(self, key, observation):
+            return llm.Outcome(llm.OK, "{}", usage)
+    recorder = llm.Recorder(Answers())
+    recorder.call((0, "ironhold", "decide"), {"tick": 0})
+    recorder.call((1, "ironhold", "decide"), {"tick": 1})
+    assert recorder.tokens() == {"ironhold": {"input_tokens": 6, "output_tokens": 10, "total_cost_usd": 0.5}}
