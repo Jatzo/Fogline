@@ -178,5 +178,15 @@ The seed-3 mixed run reached tick 400: 1,404 calls (one failed), $36.99 at list 
 
 `python -m fogline.evidence <run folders> --out research/model-behaviour-evidence-draft.md` writes an evidence pack on how each model behaved, progressed and learned: progress every 50 ticks, actions before and after contact, refusals per 50 ticks, strategy openings at fixed ticks, effort and cost, and a pooled table per model across runs. Numbers only; the plan was critiqued before building. The draft covers seed 3; regenerate it with all three runs when seeds 1 and 2 finish. 371 tests.
 
+## Seeds 1 and 2 finished, evidence pack pooled over three seeds (2026-11-15)
+Both mixed runs were resumed (seed 1 from tick 332, seed 2 from tick 208) and reached tick 400 with summaries written. Seed 1: 1,399 calls, none failed, $66.14 at list prices. Seed 2: 1,824 calls, none failed, one reply that never parsed, $69.77.
+
+Phase 4 check:
+- Seed 1: last tick reached; divergence 0.0912 passed; building types failed (Frostmark 2, Ironhold 2, Saltreach 1; Verdance 4, Dunerunners 3).
+- Seed 2: last tick reached; divergence 0.1776 passed; building types failed (Frostmark 2, Saltreach 2). Ironhold made no first contact.
+- So all three seeds fail the building check. **Open:** pass the phase, change the bar or tune the game; the plan does not settle it.
+
+`research/model-behaviour-evidence-draft.md` now pools all three seeds (5 civs per model). Against the baseline taken at seed 1 tick 144 and seed 2 tick 104, the cost order (Opus $6.85, Sonnet $1.40, Haiku $0.38 per 100 ticks) and Sonnet being the quietest ruler both hold. Opus and Haiku are now level on actions (3.01 and 3.03 a tick) and messages (1.20 and 1.22), and close on calls (0.94 and 0.89) and builds (2.49 and 2.29 per 100 ticks). Builds per 100 ticks roughly halved for every model. The refused share changed order: Sonnet 28%, Opus 27%, Haiku 27%, all within 1.5 points. 371 tests.
+
 ## Next session
-Pick the first mixed run's seed (seed 3 is the 2-2-1 roster, about $109 notional) and confirm the estimate; tiny call per model first (ADR 0007); check the first 20 ticks against the estimate. Command: `python -m fogline.run --seed 3 --ticks 400 --llm live --out runs/p4-mix-s3`. The all-Haiku seed-1 run `runs/p4-live-s1` can be resumed as a baseline with `python -m fogline.run --resume runs/p4-live-s1`. Once the account has credit, resume it with `python -m fogline.run --resume runs/p4-mix-s3`. Then record the README time-lapse from it (map and feed, approved).
+Decide what to do about the building-types check failing on all three seeds. Write the narrative for the model evidence pack (operator's). Check CI on the push of e97a9c7.
