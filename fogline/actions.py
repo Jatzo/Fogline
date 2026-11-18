@@ -151,7 +151,7 @@ def train_unit(config: Config, state: dict, civ_id: str, settlement: str, unit_k
         return Reason.TECH_MISSING
     if spec["building"] and not any(b["type"] == spec["building"] and not b["ruin"] for b in home["buildings"]):
         return Reason.BUILDING_MISSING
-    if any(civ["stocks"][res] < amount for res, amount in spec["cost"].items()):
+    if units.price(spec, civ["stocks"]) is None:
         return Reason.CANNOT_AFFORD
     if home["pop"] <= spec["pop"]:  # a settlement always keeps at least one person (rules 21)
         return Reason.NOT_ENOUGH_PEOPLE

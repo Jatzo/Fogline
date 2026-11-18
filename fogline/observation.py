@@ -23,6 +23,9 @@ NEAR = 6  # known tiles this close to an own settlement or unit survive a trim
 _TRIGGER = {"trigger": str, "detail": str}
 _REJECTION = {"index": int, "kind": str, "reason": str}
 _EVENT = {"tick": int, "kind": str, "detail": str}
+UNIT_FIELDS: Mapping[str, Any] = {"id": str, "kind": str, "pop": int, "tile": str, "ready": bool, "target": str,
+                                  "reserved": bool}
+UNIT_OPTIONAL = frozenset({"reserved"})  # caravans only
 FIELDS: Mapping[str, Any] = {
     "tick": int,
     "season": str,
@@ -40,7 +43,7 @@ FIELDS: Mapping[str, Any] = {
     "build_queue": [{"settlement": str, "building": str, "mode": str, "tile": str, "started": bool,
                      "ticks_left": int}],
     "settlements": [{"id": str, "name": str, "tile": str, "stage": str, "pop": int, "buildings": [str]}],
-    "units": [{"id": str, "kind": str, "pop": int, "tile": str, "ready": bool, "target": str}],
+    "units": [UNIT_FIELDS],
     "known": {str: str},
     "known_elsewhere": {str: int},
     "nodes": [{"id": str, "kind": str, "tile": str, "settlement": str, "left": int, "worked": bool}],
@@ -71,6 +74,27 @@ class ObservationError(ValueError):
     """Raised when an observation holds a key or type the whitelist doesn't allow."""
 
 
+def _optional(spec: Mapping) -> frozenset:
+    """Keys a dict may leave out: the contact fields of the observation, and a unit's reserved flag."""
+    if spec is FIELDS:
+        return AFTER_CONTACT
+    if spec is UNIT_FIELDS:
+        return UNIT_OPTIONAL
+    return frozenset()
+
+
+def _unit(state: dict, civ_id: str, unit_id: str) -> dict:
+    """One of the civ's own units. A caravan also says whether a trade holds it (ADR 0014): rulers
+    saw a held caravan as ready and kept offering with it. Only caravans carry the flag, and a civ
+    has none before contact, so nothing about trade shows before then."""
+    unit = state["units"][unit_id]
+    seen = {"id": unit_id, "kind": unit["kind"], "pop": unit["pop"], "tile": relative(state, civ_id, unit["tile"]),
+            "ready": units.is_ready(state, unit), "target": relative(state, civ_id, unit["target"])}
+    if unit["kind"] == "caravan":
+        seen["reserved"] = bool(unit["reserved"])
+    return seen
+
+
 def check_fields(value: Any, spec: Any = FIELDS, path: str = "observation") -> None:
     """Fail loudly unless value matches the whitelist exactly."""
     if isinstance(spec, list):
@@ -85,7 +109,7 @@ def check_fields(value: Any, spec: Any = FIELDS, path: str = "observation") -> N
             check_fields(key, str, f"{path} key")
             check_fields(item, spec[str], f"{path}.{key}")
     elif isinstance(spec, Mapping):
-        optional = AFTER_CONTACT if spec is FIELDS else frozenset()
+        optional = _optional(spec)
         if not isinstance(value, dict) or not set(spec) - optional <= set(value) <= set(spec):
             got = sorted(value) if isinstance(value, dict) else type(value).__name__
             raise ObservationError(f"{path} keys {got} are not {sorted(spec)}")
@@ -204,11 +228,7 @@ def observe(config: Config, state: dict, civ_id: str, raised: list[dict] | None 
                          "tile": relative(state, civ_id, state["settlements"][sid]["tile"]),
                          "stage": state["settlements"][sid]["stage"], "pop": state["settlements"][sid]["pop"],
                          "buildings": [b["type"] for b in state["settlements"][sid]["buildings"]]} for sid in own],
-        "units": [{"id": uid, "kind": state["units"][uid]["kind"], "pop": state["units"][uid]["pop"],
-                   "tile": relative(state, civ_id, state["units"][uid]["tile"]),
-                   "ready": units.is_ready(state, state["units"][uid]),
-                   "target": relative(state, civ_id, state["units"][uid]["target"])}
-                  for uid in units.of_civ(state, civ_id)],
+        "units": [_unit(state, civ_id, uid) for uid in units.of_civ(state, civ_id)],
         "known": known,
         "known_elsewhere": {},
         "nodes": [{"id": node_id, "kind": node["kind"], "tile": relative(state, civ_id, node["tile"]),

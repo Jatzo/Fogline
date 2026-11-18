@@ -41,6 +41,15 @@ def sight_radius(config: Config, state: dict, unit: dict) -> int:
     return config.units[unit["kind"]]["sight"]
 
 
+def price(spec: dict, stocks: dict) -> dict | None:
+    """What a unit costs this civ: its cost if the civ can pay it, else its alt_cost if it has one
+    and the civ can pay that, else None."""
+    for cost in (spec["cost"], spec.get("alt_cost")):
+        if cost is not None and all(stocks[res] >= amount for res, amount in cost.items()):
+            return cost
+    return None
+
+
 def spawn(config: Config, state: dict, civ_id: str, kind: str, settlement_id: str, log: Log, *,
           pay: bool = True, ready_now: bool = False, at: str | None = None) -> str:
     """Create a unit and return its id. Callers check the rules first (actions.train_unit does).
@@ -54,7 +63,7 @@ def spawn(config: Config, state: dict, civ_id: str, kind: str, settlement_id: st
     unit_id = f"{civ_id}-u{civ['next_unit']}"
     civ["next_unit"] += 1
     if pay:
-        for resource, amount in sorted(spec["cost"].items()):
+        for resource, amount in sorted(price(spec, civ["stocks"]).items()):
             ledger.apply(civ["stocks"], state["ledger"], log, civ_id, resource, -amount, ledger.Rule.TRAIN_COST, now)
     unit = {"civ": civ_id, "kind": kind, "home": settlement_id, "tile": at or settlement["tile"], "pop": 0,
             "ready_tick": now if ready_now else now + spec["train_ticks"], "path": [], "target": "",

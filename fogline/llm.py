@@ -236,17 +236,50 @@ def load_outputs(path: Path) -> list[dict]:
         return [json.loads(line) for line in handle if line.strip()]
 
 
+def settlement_ids(reply: dict, observation: dict) -> dict:
+    """The reply with any of the civ's own settlement names swapped for their ids.
+
+    Live rulers often write a settlement's name ("Tidewatch") where an action wants its id
+    ("saltreach-2"), and the engine refused about 370 builds that way over three runs. Names come
+    only from the observation, which lists the civ's own settlements and no one else's, so a
+    foreign or made-up name passes through unchanged and the engine refuses it as before. A name two
+    own settlements share, or one that is also an id, is left alone: guessing would build in the
+    wrong place."""
+    own = [s for s in observation.get("settlements") or [] if isinstance(s, dict)]
+    ids = {s.get("id") for s in own}
+    lowered_ids = {str(i).lower() for i in ids}
+    by_name: dict[str, list[str]] = {}
+    for s in own:
+        if isinstance(s.get("name"), str):
+            by_name.setdefault(s["name"].lower(), []).append(s["id"])
+    actions = reply.get("actions")
+    if not isinstance(actions, list):
+        return reply
+    swapped = []
+    for action in actions:
+        target = action.get("settlement") if isinstance(action, dict) else None
+        if isinstance(target, str) and target not in ids and target.lower() not in lowered_ids:
+            matches = by_name.get(target.lower(), [])
+            if len(matches) == 1:
+                action = {**action, "settlement": matches[0]}
+        swapped.append(action)
+    return {**reply, "actions": swapped}
+
+
 def make_ruler(adapter: Adapter, civ_id: str) -> Decider:
     """A decider that asks the adapter. A timeout or error is an empty turn; text that fails
     schema.validate_reply is refused with its reason, which the civ sees next turn. The decider's
-    reflect() asks for new strategy notes the same way (turns.reflect calls it)."""
+    reflect() asks for new strategy notes the same way (turns.reflect calls it). Own settlement
+    names in a reply are read as ids (settlement_ids, ADR 0013)."""
 
     def decide(observation: dict, scratch: dict):
         outcome = adapter.call((observation["tick"], civ_id, "decide"), observation)
         if outcome.status != OK:
             return None
         reply, rejections = schema.validate_reply(outcome.raw)
-        return reply if reply is not None else Refused(tuple(rejections))
+        if reply is None:
+            return Refused(tuple(rejections))
+        return settlement_ids(reply, observation)
 
     def reflect(observation: dict):
         outcome = adapter.call((observation["tick"], civ_id, "reflect"), {"step": "reflect", "observation": observation})

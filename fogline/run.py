@@ -9,6 +9,7 @@ turn records, all outside the hashed state.
 import argparse
 import dataclasses
 import json
+import subprocess
 from pathlib import Path
 
 from fogline import bots, engine, llm, pricing, prompts, snapshot, techs, units, worldgen
@@ -19,6 +20,23 @@ from fogline.state import state_hash
 BOTS = {"builder": lambda config, civ_id: bots.make_builder(config, "food" in config.civ(civ_id).short_of),
         "spiral": lambda config, civ_id: bots.spiral_scout, "idle": lambda config, civ_id: bots.idle,
         "trader": lambda config, civ_id: bots.make_trader(config, civ_id)}
+
+
+def code_version() -> dict:
+    """The git commit the code runs at, and whether the working tree had uncommitted changes, so a
+    run can be replayed at its own code after the rules move on. None when git can't say."""
+    root = Path(__file__).resolve().parent.parent
+
+    def git(*args: str) -> str | None:
+        try:
+            done = subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, timeout=10)
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        return done.stdout.strip() if done.returncode == 0 else None
+
+    commit = git("rev-parse", "HEAD")
+    status = git("status", "--porcelain", "--", "fogline", "prompts")  # the code and the prompts a run reads
+    return {"git_commit": commit, "dirty": None if status is None else bool(status)}
 
 
 def deciders_for(config: Config, state: dict, bot: str = "builder") -> dict:
@@ -107,6 +125,12 @@ def rulers(config: Config, state: dict, bot: str, mode: str, llm_civs: list[str]
     if mode == "replay":
         if outputs is None:
             raise ValueError("--llm replay needs --outputs, the outputs.jsonl of the run to replay")
+        recorded = outputs.parent / "manifest.json"
+        if recorded.exists():
+            played = json.loads(recorded.read_text(encoding="ascii")).get("config_hash")
+            if played != config.config_hash():
+                raise ValueError("these outputs were played under other rules (the config hash differs); "
+                                 "replay them at the commit in their manifest")
         adapter: llm.Adapter = llm.ReplayAdapter(llm.load_outputs(outputs))
     else:
         if mode == "live":
@@ -205,7 +229,7 @@ def play(config: Config, seed: int, ticks: int, bot: str = "builder", out: Path 
                     "events_enabled": config.events_enabled, "supply": config.supply_floor, "llm": mode,
                     "llm_civs": sorted(llm_civs or state["civs"]) if mode != "bots" else [],
                     "outputs": str(outputs) if outputs else None,
-                    "models": ruled, "slice_pair": list(config.slice_pair)}
+                    "models": ruled, "slice_pair": list(config.slice_pair), **code_version()}
         if resumed:
             old = json.loads((out / "manifest.json").read_text(encoding="ascii"))
             manifest["resumed_at"] = old.get("resumed_at", []) + [resumed[1]]

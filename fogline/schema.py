@@ -127,19 +127,45 @@ def _arg_schema(arg: Arg, met: Sequence[str]) -> dict:
     raise ValueError(f"no schema for argument kind {arg.kind!r}")
 
 
+def _goods_text(cost: dict) -> str:
+    return " and ".join(f"{amount} {good}" for good, amount in sorted(cost.items()))
+
+
+def trade_notes(config: Config) -> dict[str, str]:
+    """How trade works, for the rulers who can trade: added to these actions only once a civ has met
+    someone, so nothing about trade reaches a ruler before contact. Three live runs refused 70 to 92%
+    of offers because rulers didn't know an offer needs a free caravan (ADR 0014)."""
+    caravan = config.units["caravan"]
+    load = config.caravan_capacity
+    reserve = ("Caravans are reserved from then until the goods are delivered, the offer is refused or it "
+               "expires; a reserved caravan shows reserved: true in your units and can't carry anything else.")
+    return {
+        "offer_trade": (f"Needs one free caravan of yours for every {load} goods you give ({2 * load} once you "
+                        f"know Carts). Your goods go into escrow when you offer. {reserve}"),
+        "respond_trade": (f"Answers an open offer made to you, by its id. Accepting needs one free caravan of yours "
+                          f"for every {load} goods you send back. {reserve} An offer already accepted or under way "
+                          "can't be answered again."),
+        "train_unit": (f"A caravan costs {_goods_text(caravan['cost'])}, or {_goods_text(caravan['alt_cost'])} "
+                       f"when you can't pay that, and carries {load} goods."),
+    }
+
+
 def json_schema(config: Config, met: Sequence[str] = ()) -> dict:
     """The JSON Schema of a reply, built from the action table and the end_turn limits. met is the
     names of the civs this one has met. Before it has met anyone the schema has no contact
     actions, no contact fields and only the wake triggers a civ alone can use."""
     variants = []
+    notes = trade_notes(config) if met else {}
     for kind, spec in sorted(action_table(config).items()):
         if spec.contact and not met:
             continue
         args = {name: arg for name, arg in spec.args.items() if met or not arg.contact}
         properties = {"kind": {"const": kind}} | {name: _arg_schema(arg, met) for name, arg in args.items()}
         required = ["kind"] + [name for name, arg in args.items() if arg.required]
-        variants.append({"type": "object", "properties": properties, "required": required,
-                         "additionalProperties": False})
+        variant = {"type": "object", "properties": properties, "required": required, "additionalProperties": False}
+        if kind in notes:
+            variant["description"] = notes[kind]
+        variants.append(variant)
     from fogline.turns import CONTACT_TRIGGERS, OWN_TRIGGERS  # turns imports this module, so this waits
     triggers = OWN_TRIGGERS + (CONTACT_TRIGGERS if met else ())
     reorder = {"type": "object", "additionalProperties": False, "required": ["stock", "below", "workers"],

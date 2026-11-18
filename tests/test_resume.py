@@ -95,3 +95,21 @@ def test_only_a_mock_or_live_run_can_be_resumed(tmp_path):
     run.play(Config(), 1, 4, out=out)
     with pytest.raises(ValueError, match="mock or live"):
         run.resume(out)
+
+
+def test_a_manifest_records_the_code_it_ran_at(tmp_path):
+    out = tmp_path / "run"
+    run.play(Config(), 1, 2, out=out)
+    manifest = json.loads((out / "manifest.json").read_text(encoding="ascii"))
+    assert manifest["git_commit"] and len(manifest["git_commit"]) == 40
+    assert isinstance(manifest["dirty"], bool)
+
+
+def test_a_replay_refuses_outputs_played_under_other_rules(tmp_path):
+    out = tmp_path / "run"
+    run.play(Config(), 1, 4, out=out, mode="mock", llm_civs=["verdance"])
+    manifest = json.loads((out / "manifest.json").read_text(encoding="ascii"))
+    manifest["config_hash"] = "older rules"
+    (out / "manifest.json").write_text(json.dumps(manifest), encoding="ascii")
+    with pytest.raises(ValueError, match="other rules"):
+        run.play(Config(), 1, 4, mode="replay", llm_civs=["verdance"], outputs=out / "outputs.jsonl")

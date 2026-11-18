@@ -118,3 +118,23 @@ process starts.
 **The fix.** The totals add only numbers and skip anything else. A resume replayed the stored calls and wrote the summary.
 
 **Regression test.** `test_token_totals_skip_the_model_name_kept_with_usage` in `tests/test_llm.py` records two calls whose usage names the model, and checks the totals.
+
+## 2026-11-18: rulers named their settlements and lost about 370 builds
+
+**What broke.** All three mixed Phase 4 runs failed the 3-building-types check. Part of the cause was not the game at all: rulers wrote a settlement's name where a build order wants its id, and the engine refused every one as `not_own_settlement`.
+
+**How I found it.** I counted every build order in the stored turns of seeds 1 to 3, with its refusal reason. About 370 were `not_own_settlement`. Grouping them by the settlement the ruler wrote showed names, never ids: Saltreach on seed 1 wrote "Tidewatch" 108 times for `saltreach-2`, Dunerunners "Mirage Rest" 49 times, Verdance "Thornwick" 48. The observation lists both `id` and `name` for each settlement, and the refusal names only the reason, so the rulers repeated the order turn after turn. The same count showed the other cause: timber at 0 from about tick 100, with lumber camps refused as `no_tile` once the one forest in reach was worked out.
+
+**The fix.** With `settlement_names` in the run's manifest, the live layer swaps an own settlement's name for its id before the engine sees the reply (ADR 0013). New runs write the flag; the finished runs replay as they were.
+
+**Regression test.** `tests/test_settlement_names.py`: a named build goes through with the flag on and is refused with it off; another civ's settlement name is refused exactly like a made-up one; the flag is written to the manifest and survives a resume.
+
+## 2026-11-18: most trade offers were refused, and a civ out of timber could never trade
+
+**What broke.** Even with settlement names fixed, Saltreach on the seed-1 rerun stopped at one building type. It had run out of timber, and every trade it tried was refused. Across all four mixed runs the engine refused 70 to 92% of trade offers as `no_caravan`.
+
+**How I found it.** I counted every `offer_trade` and `respond_trade` in the stored turns with its refusal reason, then paired each `no_caravan` refusal with the caravans the ruler could see and, at snapshot ticks, the caravans the state held. On seed 3, in 47 of 54 sampled small offers refused this way, the civ's only caravan was reserved by an earlier offer, while the observation showed it `ready: true` with no reserved field. More than half the refused offers gave over 100 goods, which needs two caravans. Nothing in the prompt or schema mentioned caravans. Saltreach on the rerun made 39 offers, 33 asking for timber, and owned no caravan at any of them; a caravan cost 20 timber. The 394 `unknown_offer` refusals were mostly answers to trades already accepted (363), which do no harm.
+
+**The fix.** After contact the schema explains caravans and reservation; own caravans show `reserved`; a caravan can be paid in stone when timber is short (ADR 0014).
+
+**Regression test.** `tests/test_trade_legible.py`: the pre-contact prompts and schema match their old hashes; the post-contact schema explains caravans; a caravan shows reserved while an offer holds it and free once refused; a civ with 19 timber pays 20 stone; a civ short of both can't afford one; before contact a caravan is still an unknown unit.

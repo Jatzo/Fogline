@@ -172,7 +172,8 @@ class Config:
                  "strength": 2, "tech": "", "building": "", "train_ticks": 1, "army": True},
         "soldiers": {"cost": {"food": 20, "metal": 10, "timber": 5}, "pop": 5, "upkeep": 2, "move": 4, "sight": 2,
                      "strength": 5, "tech": "drill", "building": "barracks", "train_ticks": 2, "army": True},
-        "caravan": {"cost": {"timber": 20, "food": 10}, "pop": 2, "upkeep": 1, "move": 4, "sight": 2,
+        # alt_cost: paid when the civ can't pay cost, so a civ out of timber can still trade (ADR 0014)
+        "caravan": {"cost": {"timber": 20, "food": 10}, "alt_cost": {"stone": 20, "food": 10}, "pop": 2, "upkeep": 1, "move": 4, "sight": 2,
                     "strength": 0, "tech": "", "building": "", "train_ticks": 1, "army": False},
     })
     scout_move_pathfinding: int = 10

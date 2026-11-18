@@ -135,7 +135,9 @@ def test_a_snapshot_round_trips_to_the_same_hash(tmp_path):
 # The state hash of seed 1 after 200 ticks with builder bots and events on. Any change to the
 # rules, the numbers, the bots or the set of config fields (the config hash lives in the state)
 # changes it; the commit that does so says why.
-GOLDEN_SEED_1_TICK_200 = "503c4f576e2134e80e9409222f1953424bfb0aa5f5e161a0f19c4ffc1d9a5fa4"
+# 2026-11-18: the caravan's alt_cost (ADR 0014) changed only the config hash; with it removed, the
+# state at tick 200 hashes the same before and after (e1d8a7b0...).
+GOLDEN_SEED_1_TICK_200 = "cb71defb8cad34cd9b7286c65db0fdb13d13ea7cb37279c07830ef4117d760de"
 
 
 def test_seed_1_at_tick_200_matches_the_golden_hash():

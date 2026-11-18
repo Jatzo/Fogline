@@ -68,6 +68,8 @@ def test_the_viewer_shows_an_outpost_of_every_civ_grow_from_hamlet_to_town(town_
 def test_a_default_run_keeps_its_manifest_and_adds_supply_and_events(tmp_path):
     run.play(Config(), 1, 4, out=tmp_path / "plain")
     manifest = json.loads((tmp_path / "plain" / "manifest.json").read_text(encoding="ascii"))
+    code = {key: manifest.pop(key) for key in ("git_commit", "dirty")}
+    assert code == run.code_version()
     assert manifest == {"seed": 1, "ticks": 4, "bot": "builder", "config_hash": Config().config_hash(),
                         "events_enabled": True, "supply": 0, "llm": "bots", "llm_civs": [], "outputs": None,
                         "models": {}, "slice_pair": []}
