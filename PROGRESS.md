@@ -188,5 +188,24 @@ Phase 4 check:
 
 `research/model-behaviour-evidence-draft.md` now pools all three seeds (5 civs per model). Against the baseline taken at seed 1 tick 144 and seed 2 tick 104, the cost order (Opus $6.85, Sonnet $1.40, Haiku $0.38 per 100 ticks) and Sonnet being the quietest ruler both hold. Opus and Haiku are now level on actions (3.01 and 3.03 a tick) and messages (1.20 and 1.22), and close on calls (0.94 and 0.89) and builds (2.49 and 2.29 per 100 ticks). Builds per 100 ticks roughly halved for every model. The refused share changed order: Sonnet 28%, Opus 27%, Haiku 27%, all within 1.5 points. 371 tests.
 
+## Settlement names and workable trade, seed 1 rerun (2026-11-22)
+Commit d7fafff. Rulers now write their own settlement names (ADR 0013). Trade was hard to use, so I made it legible without nudging anyone to trade (ADR 0014): caravans are explained only after first contact, a ruler's own caravans show as "reserved", and a caravan can be paid for with 20 stone and 10 food when timber is short. Manifests now record `git_commit` and `dirty`.
+
+Three seed-1 mixed runs, same rulers (Saltreach and Dunerunners Sonnet, Frostmark and Verdance Opus, Ironhold Haiku), 400 ticks each: `runs/p4-mix-s1` (before both fixes), `runs/p4-mix-s1-names` (names only) and `runs/p4-mix-s1-trade` (both, ticks 0 to 149 at 9cfca95 with the trade change uncommitted, then resumed at d7fafff; the first manifest is kept as `manifest-first-150.json`).
+
+Trade, per civ (offers made / `no_caravan` refusals / `trade_delivery` ledger lines received, one per good per delivery):
+
+| civ | p4-mix-s1 | names | trade |
+|---|---|---|---|
+| Dunerunners | 0 / 42 / 0 | 10 / 64 / 22 | 36 / 0 / 15 |
+| Frostmark | 29 / 182 / 16 | 43 / 114 / 45 | 76 / 2 / 69 |
+| Ironhold | 0 / 77 / 0 | 9 / 13 / 15 | 28 / 0 / 13 |
+| Saltreach | 13 / 70 / 1 | 0 / 96 / 0 | 59 / 0 / 34 |
+| Verdance | 6 / 219 / 17 | 54 / 98 / 46 | 85 / 1 / 28 |
+
+Phase 4 check on the trade run: last tick reached; divergence 0.0837 passed; building types failed. Types per civ: Dunerunners 2 (farm, mine), Frostmark 3, Ironhold 3, Saltreach 1 (mine), Verdance 4.
+
+Saltreach still built one mine and nothing else. It had timber this time. It received 1,481 timber, 117 metal and 90 food by trade and held 46 timber, 10 stone and 7,379 food at tick 381. Its 21 refused builds were all `lumber_camp` with reason `no_tile` (at saltreach-2 and saltreach-3, on tiles 10,-6, 5,-9, 8,-7, 9,-7 or none), and every build it asked for after its mine was a lumber camp. A lumber camp needs a forest node in the settlement's territory. At tick 400 Saltreach held one forest node (24,51, 2 left), which already had its starting lumber camp, and none at its other three settlements, so no lumber camp could have been placed anywhere. The check counts only buildings a ruler ordered, so the starting camp does not count. The refusal names the reason but not which tiles would fit.
+
 ## Next session
-Decide what to do about the building-types check failing on all three seeds. Write the narrative for the model evidence pack (operator's). Check CI on the push of e97a9c7.
+Decide what to do about the building-types check: Saltreach now has timber but keeps asking for a lumber camp no tile can hold. Write the narrative for the model evidence pack (operator's). Push d7fafff and check CI.
