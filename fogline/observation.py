@@ -21,7 +21,8 @@ NEAR = 6  # known tiles this close to an own settlement or unit survive a trim
 # The whitelist. A value is a type, a nested mapping (an object with exactly these keys),
 # [spec] for a list of spec, or {str: spec} for an object with free keys.
 _TRIGGER = {"trigger": str, "detail": str}
-_REJECTION = {"index": int, "kind": str, "reason": str}
+_REJECTION = {"index": int, "kind": str, "reason": str, "detail": str}
+REJECTION_OPTIONAL = frozenset({"detail"})  # only refusals the engine can explain, such as no_tile
 _EVENT = {"tick": int, "kind": str, "detail": str}
 UNIT_FIELDS: Mapping[str, Any] = {"id": str, "kind": str, "pop": int, "tile": str, "ready": bool, "target": str,
                                   "reserved": bool}
@@ -75,11 +76,14 @@ class ObservationError(ValueError):
 
 
 def _optional(spec: Mapping) -> frozenset:
-    """Keys a dict may leave out: the contact fields of the observation, and a unit's reserved flag."""
+    """Keys a dict may leave out: the contact fields of the observation, a unit's reserved flag and a
+    rejection's detail."""
     if spec is FIELDS:
         return AFTER_CONTACT
     if spec is UNIT_FIELDS:
         return UNIT_OPTIONAL
+    if spec is _REJECTION:
+        return REJECTION_OPTIONAL
     return frozenset()
 
 

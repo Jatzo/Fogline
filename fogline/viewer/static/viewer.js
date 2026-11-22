@@ -964,7 +964,7 @@ function renderTurn(data) {
   const rows = [
     ["Outcome", turn.output ? turn.output.status : "scripted bot, nothing stored"],
     ["Orders", orders.length ? orders.map(orderText).join("\n") : "none"],
-    ["Rejected", turn.rejections.length ? turn.rejections.map((r) => `${r.kind || "reply"}: ${r.reason}`).join("\n") : "none"],
+    ["Rejected", turn.rejections.length ? turn.rejections.map((r) => `${r.kind || "reply"}: ${r.reason}${r.detail ? ` (${r.detail})` : ""}`).join("\n") : "none"],
     ["Journal", seen && seen.journal.length ? seen.journal.slice(-3).map((e) => `${e.tick}: ${e.text}`).join("\n") : "empty"],
     ["Strategy", (data.reflect && data.reflect.reply) || (seen && seen.strategy) || "none yet"],
     ["Messages", data.messages && data.messages.length

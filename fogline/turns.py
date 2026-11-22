@@ -16,7 +16,7 @@ from typing import Any, TypedDict
 
 import functools
 
-from fogline import actions, memory, observation, scheduler, schema
+from fogline import actions, construction, memory, observation, scheduler, schema
 from fogline.actions import Reason
 from fogline.config import RESOURCES, Config
 from fogline.state import StateError, check_plain, record_event
@@ -72,6 +72,16 @@ Decider = Callable[[dict, dict], Reply]  # (observation, scratch memory) -> repl
 
 
 MAX_KIND_CHARS = 40  # a rejection echoes the ruler's own "kind"; a long one would eat its next report
+
+
+def _no_tile_detail(config: Config, state: dict, civ_id: str, raw: dict) -> str:
+    """Why a build found no tile. A refused action changes nothing, so the state still shows why."""
+    settlement = raw.get("settlement")
+    if raw.get("kind") != "build" or settlement not in state["settlements"]:
+        return ""
+    hint = actions.to_map_tile(state, civ_id, raw["tile"]) if "tile" in raw else None
+    return construction.why_no_tile(config, state, settlement, raw["building"], hint,
+                                    functools.partial(observation.relative, state, civ_id))
 
 
 def _stored(rejections: list[dict]) -> list[dict]:
@@ -170,8 +180,11 @@ def _apply(config: Config, state: dict, civ_id: str, seen: dict | None, reply: o
     turn = civ["turn"]
     rejections: list[dict] = []
 
-    def reject(index: int, kind: object, reason: Reason) -> None:
-        rejections.append({"index": index, "kind": kind if isinstance(kind, str) else "", "reason": reason.value})
+    def reject(index: int, kind: object, reason: Reason, detail: str = "") -> None:
+        rejection = {"index": index, "kind": kind if isinstance(kind, str) else "", "reason": reason.value}
+        if detail:
+            rejection["detail"] = detail
+        rejections.append(rejection)
 
     raw_actions: list = []
     malformed = False  # a garbled reply counts as a wholly invalid turn, so it can't dodge the skip
@@ -198,7 +211,8 @@ def _apply(config: Config, state: dict, civ_id: str, seen: dict | None, reply: o
                 continue
             reason = actions.dispatch(config, state, civ_id, raw, log)
             if reason is not None:
-                reject(index, kind, reason)
+                detail = _no_tile_detail(config, state, civ_id, raw) if reason is Reason.NO_TILE else ""
+                reject(index, kind, reason, detail)
         parsed = _parse_end_turn(config, reply.get("end_turn"))
         if "memory" in reply:
             try:

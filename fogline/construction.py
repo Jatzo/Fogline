@@ -5,6 +5,8 @@ end of step 7: builds whose settlement is free and whose cost is in stock start 
 then every started build counts down, and finished ones appear on the map.
 """
 
+from collections.abc import Callable
+
 from fogline import ledger, rules
 from fogline.config import Config
 from fogline.intmath import per_mille
@@ -139,6 +141,71 @@ def place(config: Config, state: dict, settlement_id: str, building: str, hint: 
     # Fields and pastures go outside the footprint first, keeping the centre for the town.
     own.sort(key=lambda t: _in_footprint(settlement, t))
     return (own[0], settlement_id) if own else None
+
+
+MAX_NO_TILE_CHARS = 200  # rejections are the last thing cut from an observation, so keep this short
+
+
+def _needs(config: Config, building: str) -> str:
+    """What ground a building needs, in the words a ruler reads."""
+    if building in NODE_BUILDINGS:
+        kinds = " or ".join(NODE_BUILDINGS[building])
+        return f"a {kinds} node with stock left and no building on it"
+    if building == "farm":
+        return "free farmland (plains or river land; desert by a river with irrigation)"
+    if building == "pasture":
+        return "a free " + ", ".join(config.pasture_biomes) + " tile"
+    if building == "harbour":
+        return "a free coast tile inside its footprint"
+    return "a free land tile inside its footprint"
+
+
+def why_no_tile(config: Config, state: dict, settlement_id: str, building: str, hint: str | None,
+                show: Callable[[str], str]) -> str:
+    """Why place() found nowhere for a new building, from what the civ can already see.
+
+    Only the civ's own land is described: its own territory, its own nodes and its own settlement
+    names, with tiles passed through `show` so they read as the ruler's relative tiles. A hint off
+    its own land gets "not in your territory" and nothing about what is there, so the text never
+    reveals ground, nodes or buildings the civ has not seen. States facts only, never advice.
+    """
+    settlement = state["settlements"][settlement_id]
+    civ_id = settlement["civ"]
+    name = settlement["name"]
+    taken = occupied_tiles(state)
+    parts = []
+    if hint:
+        owner = state["territory"].get(hint)
+        own_land = owner is not None and state["settlements"][owner]["civ"] == civ_id
+        if not own_land:
+            parts.append(f"Tile {show(hint)} is not in your territory.")
+        elif building in EXTRACTION and owner != settlement_id:
+            parts.append(f"Tile {show(hint)} is in {state['settlements'][owner]['name']}'s land, not {name}'s.")
+        elif building not in EXTRACTION and not _in_footprint(settlement, hint):
+            parts.append(f"Tile {show(hint)} is outside {name}'s footprint.")
+        elif hint in taken:
+            parts.append(f"Tile {show(hint)} already has a building.")
+        else:
+            parts.append(f"Tile {show(hint)} is not {_needs(config, building)}.")
+    if building in NODE_BUILDINGS:
+        nodes = sorted((node_id, node) for node_id, node in state["nodes"].items()
+                       if node["kind"] in NODE_BUILDINGS[building]
+                       and state["territory"].get(node["tile"]) == settlement_id)
+        kinds = " or ".join(NODE_BUILDINGS[building])
+        if not nodes:
+            parts.append(f"{name} has no {kinds} node in its land.")
+        for _, node in nodes:
+            why = [w for w, bad in (("used up", node["node"] <= 0), ("has a building", node["tile"] in taken)) if bad]
+            parts.append(f"{name}'s {node['kind']} node at {show(node['tile'])}: {', '.join(why) or 'out of reach'}.")
+    else:
+        parts.append(f"{name} has no {_needs(config, building)} in its land.")
+    others = [state["settlements"][sid]["name"] for sid in sorted(state["settlements"])
+              if sid != settlement_id and state["settlements"][sid]["civ"] == civ_id
+              and place(config, state, sid, building, None) is not None]
+    parts.append(f"Your settlements with room for a {building}: {', '.join(others)}." if others
+                 else f"None of your settlements has room for a {building}.")
+    text = " ".join(parts)
+    return text if len(text) <= MAX_NO_TILE_CHARS else text[:MAX_NO_TILE_CHARS - 3] + "..."
 
 
 def queue_cost(config: Config, building: str, mode: str) -> dict[str, int]:
